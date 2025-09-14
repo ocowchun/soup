@@ -1,0 +1,862 @@
+(define (gcd a b)
+  (if (= b 0)
+    a
+    (gcd b (remainder a b))
+    )
+  )
+
+
+(define (make-rat n d)
+  (let (
+        (g (gcd n d))
+        )
+
+     (if (> (* n d) 0)
+
+    (cons (/ (abs n) g) (/ (abs d) g))
+    (cons (* -1 (/ (abs n) g)) (/ (abs d) g))
+       )
+    )
+ )
+
+(print (make-rat 2 3))
+
+(define (numer x)
+  (car x)
+  )
+
+(define (denom x)
+  (cdr x)
+  )
+
+(define (print-rat x)
+  (newline)
+  (display (numer x))
+  (display "/")
+  (display (denom x))
+  (newline)
+  )
+
+
+(define (add-rat x y)
+    (make-rat
+      (+ (* (numer x) (denom y)) (* (numer y) (denom x)))
+      (* (denom x) (denom y))
+      )
+  )
+
+(print-rat (add-rat (make-rat 2 3) (make-rat 3 4)))
+
+(define (sub-rat x y)
+    (make-rat
+      (- (* (numer x) (denom y)) (* (numer y) (denom x)))
+      (* (denom x) (denom y))
+      )
+  )
+
+(define (mul-rat x y)
+    (make-rat
+      (* (numer x) (numer y))
+      (* (denom x) (denom y))
+      )
+  )
+
+(define (div-rat x y)
+    (make-rat
+      (* (numer x) (denom y))
+      (* (denom x) (numer y))
+      )
+  )
+
+(define (equal-rat? x y)
+  (= (* (numer x) (denom y))
+     (* (numer y) (denom x))
+     )
+  )
+
+
+
+
+(define (make-point x y)
+  (cons x y)
+ )
+
+(define (x-point point)
+  (car point)
+  )
+
+(define (y-point point)
+  (cdr point)
+  )
+
+(define (print-point p)
+  (newline)
+  (display "(")
+  (display (x-point p))
+  (display ",")
+  (display (y-point p))
+  (display ")"))
+
+(define (make-segment p1 p2)
+  (cons p1 p2)
+  )
+
+(define (start-segment s)
+  (car s)
+  )
+
+
+(define (end-segment s)
+  (cdr s)
+  )
+
+
+(define (midpoint-segment s)
+  (make-point
+    (/ (+ (x-point (start-segment s))  (x-point (end-segment s)) ) 2)
+    (/ (+ (y-point (start-segment s))  (y-point (end-segment s)) ) 2)
+    )
+  )
+
+(define (cons2 x y)
+  (define (dispatch m)
+    (cond
+      ((= m 0) x)
+      ((= m 1) y)
+      (else (error "Argument not 0 or 1 : CONS" m))
+
+      )
+
+    )
+  dispatch
+  )
+
+
+
+(define (car2 z)
+  (z 0)
+  )
+
+(define (cdr2 z)
+  (z 1)
+  )
+
+
+
+(define (cons3 x y)
+  (lambda (m) (m x y)))
+
+(define (car3 z)
+  (z (lambda (p q) p)))
+
+(define (cdr3 z)
+  (z (lambda (p q) q)))
+
+
+(define (make-prod a b)
+  (cons a b)
+  )
+
+(define (prod-val p)
+  (* (exp 2 (car p)) (exp 3 (cdr p)))
+  )
+
+(define zero
+  (lambda (f) (lambda (x) x))
+  )
+
+(define (add-1 n)
+  (lambda (f)
+    (lambda (x) (f ((n f) x)))
+    )
+  )
+
+
+(define (make-interval a b) (cons a b))
+
+(define (upper-bound i)
+  (max (car i) (cdr i))
+  )
+
+(define (lower-bound i)
+  (min (car i) (cdr i))
+  )
+
+(define (width i)
+  (/ (- (upper-bound i) (lower-bound i)) 2)
+  )
+
+(define (add-interval x y)
+  (make-interval (+ (lower-bound x)
+                    (lower-bound y))
+                 (+ (upper-bound x)
+                    (upper-bound y))))
+
+(define (sub-interval x y)
+  (make-interval (- (lower-bound x)
+                    (upper-bound y))
+                 (- (upper-bound x)
+                    (lower-bound y))))
+
+
+(define (mul-interval x y)
+  (let ((p1 (* (lower-bound x)
+               (lower-bound y)))
+        (p2 (* (lower-bound x)
+               (upper-bound y)))
+        (p3 (* (upper-bound x)
+               (lower-bound y)))
+        (p4 (* (upper-bound x)
+               (upper-bound y))))
+    (make-interval (min p1 p2 p3 p4)
+                   (max p1 p2 p3 p4))))
+
+(define (div-interval x y)
+  (cond
+    ((= (upper-bound y) 0) (error "can't divide by y, because upper-bound is 0"))
+    ((= (lower-bound y) 0) (error "can't divide by y, because lower-bound is 0"))
+
+    (else
+  (mul-interval x
+                (make-interval
+                 (/ 1.0 (upper-bound y))
+                 (/ 1.0 (lower-bound y))))
+      )
+    )
+  )
+
+
+(define (make-center-percent c p)
+  (cons c p)
+  )
+
+(define (lower-bound i)
+  (- (car i) (* (car i) (cdr i)))
+  )
+
+(define (upper-bound i)
+  (+ (car i) (* (car i) (cdr i)))
+  )
+
+(define (center i)
+  (/ (+ (lower-bound i) (upper-bound i)) 2)
+  )
+
+
+(define (par1 r1 r2)
+  (div-interval
+   (mul-interval r1 r2)
+   (add-interval r1 r2)))
+
+
+(define (par2 r1 r2)
+  (let ((one (make-interval 1 1)))
+    (div-interval
+     one
+     (add-interval
+      (div-interval one r1)
+      (div-interval one r2)))))
+
+
+
+(define (list-ref items n)
+  (if (= n 0) (car items)
+    (list-ref (cdr items) (- n 1))
+    )
+  )
+
+
+(define (length items)
+  (if (null? items)
+    0
+    (+ 1 (length (cdr items)))
+   )
+  )
+
+(define (length items)
+  (define (iter items l)
+    (if (null? items)
+     l
+      (iter (cdr items) (+ l 1))
+      )
+    )
+
+    (iter items 0)
+  )
+
+(define (append l1 l2)
+  (if (null? l1)
+    l2
+
+    (cons (car l1)
+          (append (cdr l1) l2)
+          )
+    )
+  )
+
+(define (last-pair items)
+  (cond
+    ((null? items) (error "can't perform last-pair in null"))
+    ((null? (cdr items)) (car items))
+    (else (last-pair (cdr items)))
+    )
+  )
+
+(define (reverse items)
+  (cond
+    ((null? items) items)
+    ((null? (cdr items)) (list (car items)))
+    (else
+      (append (reverse (cdr items))  (list (car items)))
+     )
+   )
+  )
+
+(define (no-more? coin-values)
+  (null? coin-values)
+  )
+
+(define (except-first-denomination coin-values)
+  (cdr coin-values)
+  )
+
+(define (first-denomination coin-values)
+  (car coin-values)
+  )
+
+(define (cc amount coin-values)
+  (cond ((= amount 0)
+         1)
+        ((or (< amount 0)
+             (no-more? coin-values))
+         0)
+        (else
+         (+ (cc
+             amount
+             (except-first-denomination
+              coin-values))
+            (cc
+             (- amount
+                (first-denomination
+                 coin-values))
+             coin-values)))))
+
+(define (same-parity . items)
+  (define (iter items parity result)
+    (cond
+      ((null? items) result)
+      ((null? (cdr items))
+       (if (= (remainder (car items) 2) parity)
+         (append result items)
+            result
+            )
+         )
+
+      (else
+       (if (= (remainder (car items) 2) parity)
+         (iter (cdr items) parity (append result (list (car items))))
+         (iter (cdr items) parity result)
+            )
+        )
+      )
+    )
+  (iter (cdr items) (remainder (car items) 2) (list (car items)))
+  )
+
+(define us-coins (list 50 25 10 5 1))
+;;(print (cc 100 us-coins))
+
+(define nil '())
+(define (square-list items)
+  (if (null? items)
+    nil
+    (cons (square (car items)) (square-list (cdr items)))
+    )
+
+  )
+
+
+(define (square-list items)
+  (map square items)
+  )
+
+
+(define (for-each2 proc items)
+  (cond
+    ((null? items) nil)
+    (else
+  (proc (car items))
+  (for-each2 proc (cdr items))
+      )
+   )
+  )
+
+(define (count-leaves x)
+  (cond
+    ((null? x) 0)
+    ((pair? x)
+    (+ (count-leaves (car x)) (count-leaves (cdr x)))
+     )
+    (else 1)
+   )
+
+  )
+
+(define (fringe x)
+  (cond
+    ((null? x) nil)
+    ((not(pair? x)) x)
+    ((not(pair? (car x))) (append (list (car x)) (fringe (cdr x))))
+
+    (else (append (fringe (car x)) (fringe (cdr x))))
+
+    )
+  )
+
+(define (make-mobile left right)
+  (list left right))
+
+(define (left-branch mobile)
+  (car mobile)
+  )
+
+(define (right-branch mobile)
+  (car (cdr mobile))
+  )
+
+(define (make-branch length structure)
+  (list length structure)
+  )
+
+(define (branch-length branch)
+  (car branch)
+  )
+
+(define (branch-structure branch)
+  (car (cdr branch))
+  )
+
+
+(define (total-weight mobile)
+  (cond
+    ((not (pair? mobile)) mobile)
+    (else (+ (total-weight (left-branch mobile)) (total-weight (right-branch mobile)) ))
+   )
+  )
+
+(define (balanced? mobile)
+  (= (total-weight (left-branch mobile)) (total-weight (right-branch mobile)))
+  )
+
+(define (scale-tree tree factor)
+  (cond ((null? tree) nil)
+        ((not (pair? tree))
+         (* tree factor))
+        (else
+         (cons (scale-tree (car tree)
+                           factor)
+               (scale-tree (cdr tree)
+                           factor)))))
+
+
+(define (square-tree tree)
+  (cond
+    ((null? tree) nil)
+    ((not (pair? tree)) (square tree))
+    (else (cons (square-tree (car tree)) (square-tree (cdr tree))))
+    )
+
+  )
+
+(define (square-tree tree)
+  (map
+    (lambda (x) (if
+        (pair? x) (square-tree x)
+        (square x)
+                 ))
+
+    tree)
+  )
+
+(define (tree-map proc tree)
+  (map
+    (lambda (x)
+      (if
+      (pair? x) (tree-map proc x)
+      (proc x)
+        )
+      )
+       tree)
+  )
+
+(define (matrix-*-vector mat v)
+  (map
+    (lambda (x)
+      (accumulate + 0 (accumulate-n * 1 (list x v)))
+      )
+    mat
+    )
+  )
+
+(define (transpose mat)
+  (accumulate-n cons (list) mat)
+  )
+
+(define (matrix-*-matrix m n)
+  (let
+    (
+     (cols (transpose n))
+     )
+
+      (map
+        (lambda (x)
+          (matrix-*-vector cols x)
+          )
+        m)
+   )
+  )
+
+(define (fold-left op initial sequence)
+  (define (iter result rest)
+    (if (null? rest)
+      result
+      (iter (op result (car rest)) (cdr rest))
+      )
+   )
+  (iter initial sequence)
+  )
+
+(define (accumulate op initial sequence)
+  (if (null? sequence)
+      initial
+      (op (car sequence)
+          (accumulate op
+                      initial
+                      (cdr sequence)))))
+
+(define fold-right accumulate)
+
+
+(define (reverse sequence)
+  (fold-right
+    (lambda (item acc)
+      (append acc (list item))
+      )
+    nil
+    sequence
+    )
+  )
+
+
+(define (reverse sequence)
+  (fold-left
+    (lambda (acc item)
+      (append (list item) acc)
+      )
+    nil
+    sequence
+    )
+  )
+
+
+(define (flatmap proc seq)
+  (accumulate
+    append
+    nil
+    (map proc seq)
+    )
+ )
+
+(define (prime-sum? pair)
+  (prime? (+ (car pair) (cadr pair)))
+  )
+
+(define (make-pair-sum pair)
+  (list (car pair) (cadr pair) (+ (car pair) (cadr pair)))
+  )
+
+(define (prime-sum-pairs n)
+  (map make-pair-sum
+       (filter
+         prime-sum?
+         (flatmap
+           (lambda (i)
+             (map (lambda (j) (list i j)) (enumerate-interval 1 (- i 1)))
+             )
+           (enumerate-interval 1 n )
+           )
+        )
+   )
+  )
+
+(define (remove item sequence)
+  (filter (lambda (x) (not (= item x))) sequence
+  )
+  )
+
+(define (permutations s)
+    (if (null? s) (list nil)
+      (flatmap
+        (lambda (x)
+          (map
+            (lambda (p)
+              (cons x p)
+              )
+
+          (permutations (remove x s))
+            )
+          )
+        s
+       )
+      )
+)
+
+(define (unique-pairs n)
+  (flatmap
+    ( lambda (x)
+    (map
+      (lambda (y) (list x y))
+      (enumerate-interval 1 (- x 1))
+      )
+     )
+   (enumerate-interval 1 n)
+   )
+  )
+
+(define (prime-sum-pairs n)
+  (map
+    (lambda (pair)
+      (list (car pair) (cadr pair) (+ (car pair) (cadr pair)))
+      )
+
+    (filter prime-sum? (unique-pairs n))
+
+   )
+  )
+
+(define (unique-triples n)
+  (flatmap
+    (lambda (x)
+      (map (lambda (pair) (cons x pair)) (unique-pairs (- x 1)))
+      )
+   (enumerate-interval 1 n))
+ )
+
+(define (sum seq)
+  (accumulate + 0 seq)
+ )
+
+(define (exercise-2-41 k s)
+  (map
+    permutations
+
+    (filter (lambda (triple) (= s (sum triple)))
+            (unique-triples k)
+            )
+   )
+  )
+
+(define (memq item x)
+  (cond ((null? x) false)
+    ((eq? item (car x)) x)
+    (else (memq item (cdr x)))
+  )
+  )
+
+(define (equal? x y)
+  (cond
+    ((and (null? x) (null? y)) true)
+    ((or (null? x) (null? y)) false)
+    ((eq? (car x) (car y)) (equal? (cdr x) (cdr y)))
+    (else false)
+   )
+  )
+
+(define (variable? x)
+  (symbol? x)
+  )
+
+(define (sum? exp)
+  (and (pair? exp) (eq? (car exp) '+))
+  )
+
+
+
+(define (product? exp)
+  (and (pair? exp) (eq? (car exp) '*))
+  )
+
+(define (multiplier s) (cadr s))
+
+;; (define (multiplicand s) (caddr s))
+(define (multiplicand s)
+  (let
+   (
+    (right (cdr (cdr s)))
+    )
+   (if (pair? (cdr right)) (cons '* right) (car right))
+   )
+  )
+
+
+(define (** base exponent)
+  (cond
+    ((and (number? base) (= base 0)) (error "can't use 0 as base"))
+    ((and (number? exponent) (= exponent 0)) 1)
+    ((and (number? exponent) (= exponent 1)) base)
+    ;; ((not (number? exponent)) (error "currently only support number as exponent"))
+    ((number? base) (exp base exponent))
+    (else (list '** base exponent))
+    )
+  )
+
+(define (exponentation? exp)
+  (and (pair? exp) (eq? (car exp) '**))
+  )
+
+(define (base x)
+  (cadr x)
+  )
+
+(define (exponent x)
+  (caddr x)
+  )
+
+;; need to handle ('+ ('+ 1 'x)  ('+ 2 'x)) -> ('+ 3 'x 'x)
+(define (make-sum a1 a2 . a3)
+  (define (iter seq others num)
+    (if
+      (null? seq)
+       (cond
+         ((null? others) num)
+         ((= num 0)
+          (if (null? (cdr others))
+            (car others)
+            (cons '+ others)
+            )
+          )
+         (else (cons '+ (cons num others)))
+         )
+      (cond
+        ((number? (car seq)) (iter (cdr seq) others (+ num (car seq))))
+        ((sum? (car seq))
+         (cond
+           ((number? (addend (car seq)))
+            (if (sum? (augend (car seq)) )
+                (iter (cdr seq) (append others (cdr (augend (car seq)))) (+ num (addend (car seq))))
+                (iter (cdr seq) (append others (list (augend (car seq)))) (+ num (addend (car seq))))
+              )
+            )
+           ((and (pair? (augend (car seq))) (not (product? (augend (car seq)))) (not (exponentation? (augend (car seq)))))
+                (iter (cdr seq) (append others (list (addend (car seq))) (cdr (augend (car seq))) ) num)
+            )
+
+           (else (iter (cdr seq) (append others (list (addend (car seq)) (augend (car seq)))) num))
+           )
+         )
+        (else (iter (cdr seq) (append others (list (car seq))) num))
+       )
+     )
+    )
+
+  (iter (cons a1 (cons a2 a3)) (list) 0)
+  )
+
+(define (addend s) (cadr s))
+(define (augend s)
+  (let
+   (
+    (right (cdr (cdr s)))
+    )
+   (if (pair? (cdr right)) (cons '+ right) (car right))
+   )
+  )
+
+
+(define (same-variable? x y)
+  (and (variable? x) (variable? y) (eq? x y))
+  )
+
+(define (make-product a1 a2 . a3)
+  (let (
+        (first2
+  (cond
+    ((and (number? a1) (number? a2)) (* a1 a2))
+    ((and (number? a1) (= a1 0)) 0)
+    ((and (number? a2) (= a2 0)) 0)
+    ((and (number? a1) (= a1 1)) a2)
+    ((and (number? a2) (= a2 1)) a1)
+    ((product? a1) (append a1 (list a2)))
+    (else (list '* a1 a2))
+    )
+         )
+
+        )
+    (cond
+      ((null? a3) first2)
+      ((null? (cdr a3)) (make-product first2 (car a3)) )
+      (else (make-product first2 (car a3) (cdr a3)))
+      )
+
+    )
+  )
+
+(define (all-number? seq)
+  (null? (filter (lambda (x) (not (number? x))) seq))
+  )
+
+(define (deriv exp var)
+  (cond
+    ((number? exp) 0)
+    ((variable? exp) (if (same-variable? exp var) 1 0))
+    ((sum? exp)
+     (make-sum (deriv (addend exp) var) (deriv (augend exp) var))
+     )
+    ((product? exp)
+     (make-sum
+       (make-product (multiplier exp) (deriv (multiplicand exp) var))
+       (make-product (multiplicand exp) (deriv (multiplier exp) var))
+       )
+     )
+    ((exponentation? exp)
+     (make-product
+       (exponent exp)
+       (** (base exp) (make-sum (exponent exp) -1))
+      )
+     )
+    (else (error "unknown expression type: DERIV" exp))
+    )
+  )
+
+;;(define (sum? exp)
+ ;; (and (pair? exp) (eq? (car exp) '+))
+  ;;)
+(print "deriv exp1")
+(print (deriv '(* (* x y) (+ x 3)) 'x))
+
+
+;;
+
+
+
+;; (define (make-product a1 a2)
+;;   (cond
+;;     ((and (number? a1) (number? a2)) (* a1 a2))
+;;     ((and (number? a1) (= a1 0)) 0)
+;;     ((and (number? a2) (= a2 0)) 0)
+;;     ((and (number? a1) (= a1 1)) a2)
+;;     ((and (number? a2) (= a2 1)) a1)
+;;     (else (list '* a1 a2))
+;;     )
+;;   )
+
+
+
+(define (filter predicate sequence)
+  (cond ((null? sequence) nil)
+        ((predicate (car sequence))
+         (cons (car sequence)
+               (filter predicate
+                       (cdr sequence))))
+        (else  (filter predicate
+                       (cdr sequence)))))
