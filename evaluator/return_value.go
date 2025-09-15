@@ -90,9 +90,10 @@ type ListValue struct {
 }
 
 func (l *ListValue) returnValue() {}
+
 func (l *ListValue) String() string {
 	var b strings.Builder
-	b.WriteString("'(")
+	b.WriteString("(")
 	for i, elem := range l.Elements {
 		if symbol, ok := elem.(*SymbolValue); ok {
 			b.WriteString(symbol.Value)

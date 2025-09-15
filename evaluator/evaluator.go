@@ -453,10 +453,33 @@ func initGlobalEnvironment() *Environment {
 		},
 	})
 
+	env.Put("append", &BuiltinFunction{
+		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
+			if len(parameters) < 2 {
+				return nil, fmt.Errorf("`append` has been called with %d arguments; it requires at lesat 2 argument", len(parameters))
+			}
+			elements := make([]ReturnValue, 0)
+			for _, parameter := range parameters {
+				val, err := evaluator.eval(parameter, environment)
+				if err != nil {
+					return nil, err
+				}
+				listVal, ok := val.(*ListValue)
+				if !ok {
+					return nil, fmt.Errorf("expected list value, got %T", val)
+				}
+				elements = append(elements, listVal.Elements...)
+			}
+			return &ListValue{Elements: elements}, nil
+		},
+	})
+
 	env.Put("car", ConProcedureFactory([]ConOperation{CON_OP_CAR}))
 	env.Put("cdr", ConProcedureFactory([]ConOperation{CON_OP_CDR}))
 	env.Put("cadr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CAR}))
 	env.Put("cdar", ConProcedureFactory([]ConOperation{CON_OP_CAR, CON_OP_CDR}))
+	env.Put("caddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
+	env.Put("cadddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
 
 	env.Put("null?", &BuiltinFunction{
 		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
@@ -533,7 +556,7 @@ func initGlobalEnvironment() *Environment {
 	env.Put("error", &BuiltinFunction{
 		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
 			if len(parameters) < 1 {
-				return nil, fmt.Errorf("'error' has been called with 0 arguments; it requires at least 1 argument", len(parameters))
+				return nil, fmt.Errorf("'error' has been called with %d arguments; it requires at least 1 argument", len(parameters))
 			}
 
 			val, err := evaluator.eval(parameters[0], environment)
