@@ -58,12 +58,11 @@ func printError(err error) {
 	if errors.As(err, &runtimeError) {
 
 		fmt.Println(err.Error())
-		for _, e := range runtimeError.Stack {
-			fmt.Printf("\t at %s (line %d)\n", e.Content, e.Line)
+		for _, e := range runtimeError.StackTrace() {
+			fmt.Printf("\t at %s (line %d)\n", e.IdentifierName(), e.LineNumber())
 		}
-		//fmt.Printf("Runtime error at line %d, got token: `%s` type: %s, error: %s\n",
-		//	runtimeError.Token.Line, runtimeError.Token.Content, runtimeError.Token.TokenType,
-		//	runtimeError.Message)
+
+		fmt.Printf("\t at main (line %d)\n", runtimeError.LineNumber())
 		return
 	}
 
@@ -194,6 +193,6 @@ func runFile(fileName string) error {
 	return nil
 }
 
-func printReturnValue(ret evaluator.ReturnValue) {
+func printReturnValue(ret *evaluator.ReturnValue) {
 	fmt.Printf("Result: %s\n", ret.String())
 }

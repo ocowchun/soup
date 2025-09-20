@@ -10,6 +10,7 @@ func TestLexer(t *testing.T) {
 (define if lambda let begin set! cond else and or square > < >= <= + - * / ' "hello" 123 45.67)
 +abc -bcd *cd /de *123 /67 +123 -45.67 #t #f
 . .a a.b
+true false
 `
 	l := New(strings.NewReader(input))
 	expectedTokens := []Token{
@@ -51,7 +52,9 @@ func TestLexer(t *testing.T) {
 		{Content: ".", Line: 4, TokenType: TokenTypeDot},
 		{Content: ".a", Line: 4, TokenType: TokenTypeIdentifier},
 		{Content: "a.b", Line: 4, TokenType: TokenTypeIdentifier},
-		{Content: "", Line: 4, TokenType: TokenTypeEOF},
+		{Content: "true", Line: 5, TokenType: TokenTypeTrue},
+		{Content: "false", Line: 5, TokenType: TokenTypeFalse},
+		{Content: "", Line: 5, TokenType: TokenTypeEOF},
 	}
 
 	for i, expected := range expectedTokens {

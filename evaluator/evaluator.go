@@ -1,618 +1,122 @@
 package evaluator
 
 import (
-	"errors"
 	"fmt"
-	"math"
 
-	"github.com/ocowchun/soup/lexer"
 	"github.com/ocowchun/soup/parser"
 )
 
 type Evaluator struct {
-	globalEnv *Environment
+	globalEnv      *Environment
+	procedureNames []string
 }
 
 func New() *Evaluator {
 	env := initGlobalEnvironment()
-	return &Evaluator{globalEnv: env}
+	return &Evaluator{globalEnv: env, procedureNames: []string{}}
 }
 
-func initGlobalEnvironment() *Environment {
-	env := newEnvironment()
-	// Add built-in functions to the environment
-	env.Put("+", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			res := float64(0)
-			for _, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				numVal, ok := val.(*NumberValue)
-				if !ok {
-					return nil, fmt.Errorf("expected number value, got %T", val)
-				}
-				res += numVal.Value
-			}
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("-", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-
-			if len(parameters) == 0 {
-				return nil, fmt.Errorf("'-' requires at least one argument")
-			}
-			if len(parameters) == 1 {
-				val, err := evaluator.eval(parameters[0], environment)
-				if err != nil {
-					return nil, err
-				}
-				numVal, ok := val.(*NumberValue)
-				if !ok {
-					return nil, fmt.Errorf("expected number value, got %T", val)
-				}
-				return &NumberValue{Value: -numVal.Value}, nil
-			}
-
-			res := float64(0)
-			for i, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				numVal, ok := val.(*NumberValue)
-				if !ok {
-					return nil, fmt.Errorf("expected number value, got %T", val)
-				}
-
-				if i == 0 {
-					res = numVal.Value
-				} else {
-					res -= numVal.Value
-				}
-			}
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("*", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			res := float64(1)
-
-			if len(parameters) == 0 {
-				return nil, fmt.Errorf("'*' requires at least one argument")
-			}
-
-			for _, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				numVal, ok := val.(*NumberValue)
-				if !ok {
-					return nil, fmt.Errorf("expected number value, got %T %s", val, parameter.String())
-				}
-				res *= numVal.Value
-			}
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("/", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			res := float64(0)
-
-			if len(parameters) == 0 {
-				return nil, fmt.Errorf("'/' requires at least one argument")
-			}
-
-			for i, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				numVal, ok := val.(*NumberValue)
-				if !ok {
-					return nil, fmt.Errorf("expected number value, got %T", val)
-				}
-				if i == 0 {
-					res = numVal.Value
-				} else {
-					res /= numVal.Value
-				}
-			}
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("remainder", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 2 {
-				return nil, fmt.Errorf("'remainder' has been called with %d arguments; it requires exactly 2 argument", len(parameters))
-			}
-
-			a, err := evaluator.evalNumber(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			b, err := evaluator.evalNumber(parameters[1], environment)
-			if err != nil {
-				return nil, err
-			}
-			res := math.Mod(a.Value, b.Value)
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("sqrt", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'sqrt' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			numVal, ok := val.(*NumberValue)
-			if !ok {
-				return nil, fmt.Errorf("expected number value, got %T", val)
-			}
-			res := math.Sqrt(numVal.Value)
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("abs", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'abs' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			numVal, ok := val.(*NumberValue)
-			if !ok {
-				return nil, fmt.Errorf("expected number value, got %T", val)
-			}
-			res := math.Abs(numVal.Value)
-
-			return &NumberValue{Value: res}, nil
-		},
-	})
-
-	env.Put("number?", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'number?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			_, ok := val.(*NumberValue)
-			if ok {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("symbol?", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'symbol?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			_, ok := val.(*SymbolValue)
-			if ok {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("pair?", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'pair?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			switch val.(type) {
-			case *ConsValue:
-				return TrueValue, nil
-			case *ListValue:
-				list := val.(*ListValue)
-				if len(list.Elements) > 0 {
-					return TrueValue, nil
-				}
-				return FalseValue, nil
-			default:
-				return FalseValue, nil
-			}
-		},
-	})
-
-	// https://docs.scheme.org/schintro/schintro_49.html
-	// For this, you use eq?. eq? compares two values to see if they refer to the same object.
-	// Since all values in Scheme are (conceptually) pointers, this is just a pointer comparison, so eq? is always fast.
-	env.Put("eq?", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 2 {
-				return nil, fmt.Errorf("'eq?' has been called with %d arguments; it requires exactly 2 argument", len(parameters))
-			}
-
-			val1, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			val2, err := evaluator.eval(parameters[1], environment)
-			if err != nil {
-				return nil, err
-			}
-
-			if val1 == val2 {
-				return TrueValue, nil
-			}
-
-			if num1, ok := val1.(*NumberValue); ok {
-				if num2, ok := val2.(*NumberValue); ok {
-					if num1.Value == num2.Value {
-						return TrueValue, nil
-					}
-				}
-			}
-			if str1, ok := val1.(*SymbolValue); ok {
-				if str2, ok := val2.(*SymbolValue); ok {
-					if str1.Value == str2.Value {
-						return TrueValue, nil
-					}
-				}
-			}
-			return FalseValue, nil
-		},
-	})
-
-	env.Put(">", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			cmp, err := compareNumber(parameters, ">", evaluator, environment)
-			if err != nil {
-				return nil, err
-			}
-			if cmp > 0 {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put(">=", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			cmp, err := compareNumber(parameters, ">=", evaluator, environment)
-			if err != nil {
-				return nil, err
-			}
-			if cmp >= 0 {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("<", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			cmp, err := compareNumber(parameters, "<", evaluator, environment)
-			if err != nil {
-				return nil, err
-			}
-			if cmp < 0 {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("<=", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			cmp, err := compareNumber(parameters, "<=", evaluator, environment)
-			if err != nil {
-				return nil, err
-			}
-			if cmp <= 0 {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("=", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			cmp, err := compareNumber(parameters, "=", evaluator, environment)
-			if err != nil {
-				return nil, err
-			}
-			if cmp == 0 {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("and", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			result := true
-			for _, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				boolVal, ok := val.(ConstantValue)
-				if !ok {
-					return nil, fmt.Errorf("expected boolean value, got %T", val)
-				}
-				if boolVal == FalseValue {
-					result = false
-					break
-				}
-			}
-			if result {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("or", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			result := false
-			for _, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				boolVal, ok := val.(ConstantValue)
-				if !ok {
-					return nil, fmt.Errorf("expected boolean value, got %T", val)
-				}
-				if boolVal == TrueValue {
-					result = true
-					break
-				}
-			}
-			if result {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	// cons
-	env.Put("cons", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 2 {
-				return nil, fmt.Errorf("'cons' has been called with %d arguments; it requires exactly 2 argument", len(parameters))
-			}
-
-			car, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-
-			cdr, err := evaluator.eval(parameters[1], environment)
-			if err != nil {
-				return nil, err
-			}
-			res := &ConsValue{
-				Car: car,
-				Cdr: cdr,
-			}
-			return res, nil
-		},
-	})
-
-	env.Put("list", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			elements := make([]ReturnValue, len(parameters))
-			for i, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				elements[i] = val
-			}
-			return &ListValue{Elements: elements}, nil
-		},
-	})
-
-	env.Put("append", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) < 2 {
-				return nil, fmt.Errorf("`append` has been called with %d arguments; it requires at lesat 2 argument", len(parameters))
-			}
-			elements := make([]ReturnValue, 0)
-			for _, parameter := range parameters {
-				val, err := evaluator.eval(parameter, environment)
-				if err != nil {
-					return nil, err
-				}
-				listVal, ok := val.(*ListValue)
-				if !ok {
-					return nil, fmt.Errorf("expected list value, got %T", val)
-				}
-				elements = append(elements, listVal.Elements...)
-			}
-			return &ListValue{Elements: elements}, nil
-		},
-	})
-
-	env.Put("car", ConProcedureFactory([]ConOperation{CON_OP_CAR}))
-	env.Put("cdr", ConProcedureFactory([]ConOperation{CON_OP_CDR}))
-	env.Put("cadr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CAR}))
-	env.Put("cdar", ConProcedureFactory([]ConOperation{CON_OP_CAR, CON_OP_CDR}))
-	env.Put("caddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
-	env.Put("cadddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
-
-	env.Put("null?", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'null?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			listVal, ok := val.(*ListValue)
-			if !ok {
-				return FalseValue, nil
-			}
-			if len(listVal.Elements) == 0 {
-				return TrueValue, nil
-			} else {
-				return FalseValue, nil
-			}
-		},
-	})
-
-	env.Put("display", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'display' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			if str, ok := val.(*StringValue); ok {
-				fmt.Print(str.Value)
-			} else {
-				fmt.Print(val.String())
-			}
-
-			return VoidConst, nil
-		},
-	})
-
-	// TODO: how to print stack trace on error?
-
-	env.Put("newline", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 0 {
-				return nil, fmt.Errorf("'newline' has been called with %d arguments; it requires exactly 0 argument", len(parameters))
-			}
-
-			fmt.Println()
-
-			return VoidConst, nil
-		},
-	})
-
-	env.Put("print", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'print' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			fmt.Println(val.String())
-
-			return VoidConst, nil
-		},
-	})
-
-	env.Put("error", &BuiltinFunction{
-		Fn: func(parameters []parser.Expression, evaluator *Evaluator, environment *Environment) (ReturnValue, error) {
-			if len(parameters) < 1 {
-				return nil, fmt.Errorf("'error' has been called with %d arguments; it requires at least 1 argument", len(parameters))
-			}
-
-			val, err := evaluator.eval(parameters[0], environment)
-			if err != nil {
-				return nil, err
-			}
-			//fmt.Println(val.String())
-
-			panic(fmt.Sprintf("failed to evaluate: %s", val.String()))
-
-			//return VoidConst, nil
-		},
-	})
-
-	// Add more built-in functions as needed
-	return env
+func (e *Evaluator) currentProcedureName() string {
+	return e.procedureNames[len(e.procedureNames)-1]
 }
 
-func (e *Evaluator) evalNumber(parameter parser.Expression, environment *Environment) (*NumberValue, error) {
+func (e *Evaluator) pushProcedureName(newProcedureName string) {
+	e.procedureNames = append(e.procedureNames, newProcedureName)
+}
+
+func (e *Evaluator) popProcedureName() string {
+	res := e.procedureNames[len(e.procedureNames)-1]
+	e.procedureNames = e.procedureNames[:len(e.procedureNames)-1]
+	return res
+}
+
+func equal(a *ReturnValue, b *ReturnValue) bool {
+	if a == b {
+		return true
+	}
+	switch a.Type {
+	case NumberType:
+		if b.Type != NumberType {
+			return false
+		}
+		return a.Number() == b.Number()
+	case StringType:
+		if b.Type != StringType {
+			return false
+		}
+		return a.String() == b.String()
+	case SymbolType:
+		if b.Type != SymbolType {
+			return false
+		}
+		return a.String() == b.String()
+	case ListType:
+		if b.Type != ListType {
+			return false
+		}
+		aList := a.List()
+		bList := b.List()
+		if len(aList.Elements) != len(bList.Elements) {
+			return false
+		}
+		for i := range aList.Elements {
+			if !equal(aList.Elements[i], bList.Elements[i]) {
+				return false
+			}
+		}
+		return true
+	case ConstantType:
+		if b.Type != ConstantType {
+			return false
+		}
+		return a.Constant() == b.Constant()
+	case ConsType:
+		if b.Type != ConsType {
+			return false
+		}
+		aCons := a.Cons()
+		bCons := b.Cons()
+		return equal(aCons.Car, bCons.Car) && equal(aCons.Cdr, bCons.Cdr)
+	default:
+		return false
+	}
+}
+
+func addBuiltinToEnv(env *Environment, name string, fn *BuiltinFunction) {
+	env.Put(name, &ReturnValue{Type: BuiltinFunctionType, Data: fn})
+}
+
+func (e *Evaluator) evalNumber(parameter parser.Expression, environment *Environment) (float64, error) {
 	val, err := e.eval(parameter, environment)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	numVal, ok := val.(*NumberValue)
-	if !ok {
-		return nil, fmt.Errorf("expected number value, got %T", val)
+	if val.Type != NumberType {
+		return 0, fmt.Errorf("expected number value, got %T", val)
 	}
-	return numVal, nil
+	return val.Number(), nil
 }
 
-func compareNumber(parameters []parser.Expression, op string, evaluator *Evaluator, environment *Environment) (int, error) {
+func compareNumber(parameters []*ReturnValue, op string, evaluator *Evaluator, environment *Environment) (int, error) {
 	if len(parameters) != 2 {
 		return 0, fmt.Errorf("'%s' has been called with %d arguments; it requires exactly 1 argument", op, len(parameters))
 	}
 
-	left, err := evaluator.eval(parameters[0], environment)
-	if err != nil {
-		return 0, err
+	left := parameters[0]
+	if left.Type != NumberType {
+		return 0, fmt.Errorf("expected number value, got %T", left)
 	}
-	leftVal, ok := left.(*NumberValue)
-	if !ok {
-		return 0, fmt.Errorf("expected number value, got %T", leftVal)
-	}
+	leftVal := left.Number()
 
-	right, err := evaluator.eval(parameters[1], environment)
-	if err != nil {
-		return 0, err
+	right := parameters[1]
+	if right.Type != NumberType {
+		return 0, fmt.Errorf("expected number value, got %T", right)
 	}
-	rightVal, ok := right.(*NumberValue)
-	if !ok {
-		return 0, fmt.Errorf("expected number value, got %T", rightVal)
-	}
+	rightVal := right.Number()
 
-	if leftVal.Value > rightVal.Value {
+	if leftVal > rightVal {
 		return 1, nil
-	} else if leftVal.Value < rightVal.Value {
+	} else if leftVal < rightVal {
 		return -1, nil
 	} else {
 		return 0, nil
@@ -621,20 +125,20 @@ func compareNumber(parameters []parser.Expression, op string, evaluator *Evaluat
 
 type Environment struct {
 	enclosing *Environment
-	store     map[string]ReturnValue
+	store     map[string]*ReturnValue
 }
 
 func newEnvironment() *Environment {
 	return &Environment{
-		store: make(map[string]ReturnValue),
+		store: make(map[string]*ReturnValue),
 	}
 }
 
-func (env *Environment) Put(key string, value ReturnValue) {
+func (env *Environment) Put(key string, value *ReturnValue) {
 	env.store[key] = value
 }
 
-func (env *Environment) Get(key string) (ReturnValue, bool) {
+func (env *Environment) Get(key string) (*ReturnValue, bool) {
 	val, ok := env.store[key]
 	if !ok && env.enclosing != nil {
 		return env.enclosing.Get(key)
@@ -646,7 +150,7 @@ func (env *Environment) Get(key string) (ReturnValue, bool) {
 // If the key does not exist in the current environment, it recursively
 // checks the enclosing environment. If the key is not found in any
 // environment, it returns an error.
-func (env *Environment) Update(key string, value ReturnValue) (ReturnValue, error) {
+func (env *Environment) Update(key string, value *ReturnValue) (*ReturnValue, error) {
 	oldVal, ok := env.store[key]
 	if ok {
 		env.store[key] = value
@@ -658,9 +162,10 @@ func (env *Environment) Update(key string, value ReturnValue) (ReturnValue, erro
 	return nil, fmt.Errorf("can't find key %s to update", key)
 }
 
-func (e *Evaluator) Eval(program *parser.Program) (ReturnValue, error) {
-	var ret ReturnValue
+func (e *Evaluator) Eval(program *parser.Program) (*ReturnValue, error) {
+	var ret *ReturnValue
 	var err error
+	e.procedureNames = append(e.procedureNames, "main")
 	for _, exp := range program.Expressions {
 		ret, err = e.eval(exp, e.globalEnv)
 		if err != nil {
@@ -670,23 +175,23 @@ func (e *Evaluator) Eval(program *parser.Program) (ReturnValue, error) {
 	return ret, nil
 }
 
-func (e *Evaluator) eval(expression parser.Expression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) eval(expression parser.Expression, environment *Environment) (*ReturnValue, error) {
 	switch expression {
 	case parser.TrueLiteral:
-		return TrueValue, nil
+		return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
 	case parser.FalseLiteral:
-		return FalseValue, nil
+		return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
 	case parser.Void:
-		return VoidConst, nil
+		return &ReturnValue{Type: ConstantType, Data: VoidConst}, nil
 	}
 
 	switch exp := expression.(type) {
 	case *parser.NumberLiteral:
-		return &NumberValue{Value: exp.Value}, nil
+		return &ReturnValue{Type: NumberType, Data: exp.Value}, nil
 	case *parser.StringLiteral:
-		return &StringValue{Value: exp.Value}, nil
+		return &ReturnValue{Type: StringType, Data: exp.Value}, nil
 	case *parser.SymbolExpression:
-		return &SymbolValue{Value: exp.Value}, nil
+		return &ReturnValue{Type: SymbolType, Data: exp.Value}, nil
 	case *parser.DefineExpression:
 		return e.evalDefineExpression(exp, environment)
 	case *parser.IdentifierExpression:
@@ -704,8 +209,10 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 		if !ok {
 			panic("undefined primitive identifier: `" + exp.String() + "`")
 		}
-		builtinFn, ok := fn.(*BuiltinFunction)
-		return builtinFn, nil
+		if fn.Type != BuiltinFunctionType {
+			return nil, fmt.Errorf("identifier `%s` is not a builtin function", exp.String())
+		}
+		return fn, nil
 	case *parser.IfExpression:
 		return e.evalIfExpression(exp, environment)
 	case *parser.SetExpression:
@@ -718,8 +225,8 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 	}
 }
 
-func (e *Evaluator) evalListExpression(exp *parser.ListExpression, environment *Environment) (ReturnValue, error) {
-	elements := make([]ReturnValue, len(exp.Elements))
+func (e *Evaluator) evalListExpression(exp *parser.ListExpression, environment *Environment) (*ReturnValue, error) {
+	elements := make([]*ReturnValue, len(exp.Elements))
 	for i, element := range exp.Elements {
 		val, err := e.eval(element, environment)
 		if err != nil {
@@ -727,10 +234,11 @@ func (e *Evaluator) evalListExpression(exp *parser.ListExpression, environment *
 		}
 		elements[i] = val
 	}
-	return &ListValue{Elements: elements}, nil
+	list := &ListValue{Elements: elements}
+	return &ReturnValue{Type: ListType, Data: list}, nil
 }
 
-func (e *Evaluator) evalSetExpression(exp *parser.SetExpression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) evalSetExpression(exp *parser.SetExpression, environment *Environment) (*ReturnValue, error) {
 	val, err := e.eval(exp.Value, environment)
 	if err != nil {
 		return nil, err
@@ -739,30 +247,35 @@ func (e *Evaluator) evalSetExpression(exp *parser.SetExpression, environment *En
 	return environment.Update(exp.Name, val)
 }
 
-func (e *Evaluator) evalIfExpression(exp *parser.IfExpression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) evalIfExpression(exp *parser.IfExpression, environment *Environment) (*ReturnValue, error) {
 	cond, err := e.eval(exp.Predicate, environment)
 	if err != nil {
-		return nil, err
+		return nil, newRuntimeError(err, exp.Predicate.Token(), e.currentProcedureName())
 	}
 
-	condVal, ok := cond.(ConstantValue)
-	if !ok {
-		return nil, fmt.Errorf("condition must evaluate to a bool, got %T", condVal)
-	}
-	if condVal == TrueValue {
-		return e.eval(exp.Consequent, environment)
-	} else if condVal == FalseValue {
+	// In Scheme, any value except #f counts as true in conditionals.
+	// https://docs.scheme.org/schintro/schintro_87.html
+	if cond.Type == ConstantType && cond.Data == FalseValue {
 		if exp.Alternative != nil {
-			return e.eval(exp.Alternative, environment)
+			ret, err := e.eval(exp.Alternative, environment)
+			if err != nil {
+				return nil, newRuntimeError(err, exp.Alternative.Token(), e.currentProcedureName())
+				//return nil, err
+			}
+			return ret, nil
 		} else {
-			return VoidConst, nil
+			return &ReturnValue{Type: ConstantType, Data: VoidConst}, nil
 		}
 	} else {
-		return nil, fmt.Errorf("condition must evaluate to a bool, got %v", condVal)
+		ret, err := e.eval(exp.Consequent, environment)
+		if err != nil {
+			return nil, newRuntimeError(err, exp.Consequent.Token(), e.currentProcedureName())
+		}
+		return ret, nil
 	}
 }
 
-func (e *Evaluator) evalLambdaExpression(exp *parser.LambdaExpression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) evalLambdaExpression(exp *parser.LambdaExpression, environment *Environment) (*ReturnValue, error) {
 	params := make([]string, len(exp.Parameters))
 	for i, param := range exp.Parameters {
 		params[i] = param
@@ -774,10 +287,10 @@ func (e *Evaluator) evalLambdaExpression(exp *parser.LambdaExpression, environme
 		Body:                  exp.Body,
 		Env:                   environment,
 	}
-	return proc, nil
+	return &ReturnValue{Type: ProcedureType, Data: proc}, nil
 }
 
-func (e *Evaluator) evalDefineExpression(exp *parser.DefineExpression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) evalDefineExpression(exp *parser.DefineExpression, environment *Environment) (*ReturnValue, error) {
 	val, err := e.eval(exp.Value, environment)
 	if err != nil {
 		return nil, err
@@ -786,49 +299,47 @@ func (e *Evaluator) evalDefineExpression(exp *parser.DefineExpression, environme
 	return val, nil
 }
 
-// how to handle runtime error with stack trace?
-type RuntimeError struct {
-	rawErrorMessage string
-	Stack           []lexer.Token
-}
-
-func (e *RuntimeError) Error() string {
-	return e.rawErrorMessage
-}
-
-func newRuntimeError(err error, token lexer.Token) *RuntimeError {
-	var prevError *RuntimeError
-	if ok := errors.As(err, &prevError); ok {
-		stacks := make([]lexer.Token, 0, len(prevError.Stack)+1)
-		stacks = append(stacks, token)
-		stacks = append(stacks, prevError.Stack...)
-		return &RuntimeError{rawErrorMessage: prevError.rawErrorMessage, Stack: stacks}
-	} else {
-		return &RuntimeError{rawErrorMessage: err.Error(), Stack: []lexer.Token{token}}
-	}
-}
-
-func (e *Evaluator) evalCallExpression(exp *parser.CallExpression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) evalCallExpression(exp *parser.CallExpression, environment *Environment) (*ReturnValue, error) {
 	operator := exp.Operator
+
 	val, err := e.eval(operator, environment)
 	if err != nil {
-		return nil, err
+		return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
 	}
-	switch fn := val.(type) {
-	case *BuiltinFunction:
-		return e.evalBuiltinFunction(fn, exp.Operands, environment)
-	case *ProcedureValue:
-		ret, err := e.evalProcedure(fn, exp.Operands, environment)
+
+	operands := make([]*ReturnValue, len(exp.Operands))
+	for i, op := range exp.Operands {
+		operand, err := e.eval(op, environment)
 		if err != nil {
-			return nil, newRuntimeError(err, operator.Token())
+			return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
+		}
+		operands[i] = operand
+	}
+
+	switch val.Type {
+	case BuiltinFunctionType:
+		fn := val.BuiltinFunction()
+		ret, err := e.evalBuiltinFunction(fn, operands, environment)
+		if err != nil {
+			return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
+		}
+		return ret, nil
+
+	case ProcedureType:
+		e.pushProcedureName(operator.String())
+		fn := val.Procedure()
+		ret, err := e.evalProcedure(fn, operands, environment)
+		if err != nil {
+			return nil, newRuntimeError(err, operator.Token(), e.popProcedureName())
 		}
 		return ret, nil
 	default:
-		return nil, fmt.Errorf("unsupported operator type: %T", fn)
+		err = fmt.Errorf("unsupported operator type: %s(%s)", val.Type, val.String())
+		return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
 	}
 }
 
-func (e *Evaluator) evalBuiltinFunction(builtinFn *BuiltinFunction, operands []parser.Expression, environment *Environment) (ReturnValue, error) {
+func (e *Evaluator) evalBuiltinFunction(builtinFn *BuiltinFunction, operands []*ReturnValue, environment *Environment) (*ReturnValue, error) {
 	ret, err := builtinFn.Fn(operands, e, environment)
 	if err != nil {
 		return nil, err
@@ -836,7 +347,55 @@ func (e *Evaluator) evalBuiltinFunction(builtinFn *BuiltinFunction, operands []p
 	return ret, nil
 }
 
-func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []parser.Expression, environment *Environment) (ReturnValue, error) {
+//func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []parser.Expression, environment *Environment) (*ReturnValue, error) {
+//	if procedure.CaneTakeArbitraryParameters() {
+//		if len(procedure.Parameters) > len(operands) {
+//			return nil, fmt.Errorf("expected at least %d arguments, got %d", len(procedure.Parameters), len(operands))
+//		}
+//	} else if len(procedure.Parameters) != len(operands) {
+//		return nil, fmt.Errorf("expected %d arguments, got %d", len(procedure.Parameters), len(operands))
+//	}
+//
+//	// Create a new environment for the procedure call
+//	newEnv := newEnvironment()
+//	newEnv.enclosing = procedure.Env
+//
+//	// Evaluate arguments and bind them to parameters in the new environment
+//	for i, param := range procedure.Parameters {
+//		argVal, err := e.eval(operands[i], environment)
+//		if err != nil {
+//			return nil, err
+//		}
+//		newEnv.Put(param, argVal)
+//	}
+//
+//	if procedure.CaneTakeArbitraryParameters() {
+//		tailArgs := ListValue{Elements: make([]*ReturnValue, 0)}
+//		for i := len(procedure.Parameters); i < len(operands); i++ {
+//			argVal, err := e.eval(operands[i], environment)
+//			if err != nil {
+//				return nil, err
+//			}
+//			tailArgs.Elements = append(tailArgs.Elements, argVal)
+//		}
+//
+//		newEnv.Put(procedure.OptionalTailParameter, &ReturnValue{Type: ListType, Data: &tailArgs})
+//	}
+//
+//	// Evaluate the body of the procedure in the new environment
+//	var result *ReturnValue
+//	var err error
+//	for _, expr := range procedure.Body {
+//		result, err = e.eval(expr, newEnv)
+//		if err != nil {
+//			return nil, err
+//		}
+//	}
+//
+//	return result, nil
+//}
+
+func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []*ReturnValue, environment *Environment) (*ReturnValue, error) {
 	if procedure.CaneTakeArbitraryParameters() {
 		if len(procedure.Parameters) > len(operands) {
 			return nil, fmt.Errorf("expected at least %d arguments, got %d", len(procedure.Parameters), len(operands))
@@ -851,28 +410,20 @@ func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []parser.E
 
 	// Evaluate arguments and bind them to parameters in the new environment
 	for i, param := range procedure.Parameters {
-		argVal, err := e.eval(operands[i], environment)
-		if err != nil {
-			return nil, err
-		}
-		newEnv.Put(param, argVal)
+		newEnv.Put(param, operands[i])
 	}
 
 	if procedure.CaneTakeArbitraryParameters() {
-		tailArgs := ListValue{Elements: make([]ReturnValue, 0)}
+		tailArgs := ListValue{Elements: make([]*ReturnValue, 0)}
 		for i := len(procedure.Parameters); i < len(operands); i++ {
-			argVal, err := e.eval(operands[i], environment)
-			if err != nil {
-				return nil, err
-			}
-			tailArgs.Elements = append(tailArgs.Elements, argVal)
+			tailArgs.Elements = append(tailArgs.Elements, operands[i])
 		}
 
-		newEnv.Put(procedure.OptionalTailParameter, &tailArgs)
+		newEnv.Put(procedure.OptionalTailParameter, &ReturnValue{Type: ListType, Data: &tailArgs})
 	}
 
 	// Evaluate the body of the procedure in the new environment
-	var result ReturnValue
+	var result *ReturnValue
 	var err error
 	for _, expr := range procedure.Body {
 		result, err = e.eval(expr, newEnv)

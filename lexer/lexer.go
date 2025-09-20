@@ -206,6 +206,8 @@ var keywordMap = map[string]TokenType{
 	"else":   TokenTypeElse,
 	"and":    TokenTypeAnd,
 	"or":     TokenTypeOr,
+	"true":   TokenTypeTrue,
+	"false":  TokenTypeFalse,
 }
 
 func (l *Lexer) readIdentifierOrKeyword() (Token, error) {

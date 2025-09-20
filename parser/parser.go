@@ -81,7 +81,8 @@ func (p *Parser) parseNumber() (*NumberLiteral, error) {
 	}
 
 	exp := &NumberLiteral{
-		Value: num,
+		NumToken: p.currentToken,
+		Value:    num,
 	}
 	p.nextToken()
 
@@ -89,7 +90,7 @@ func (p *Parser) parseNumber() (*NumberLiteral, error) {
 }
 
 func (p *Parser) parseString() (Expression, error) {
-	str := &StringLiteral{Value: p.currentToken.Content}
+	str := &StringLiteral{Value: p.currentToken.Content, StrToken: p.currentToken}
 	p.nextToken()
 	return str, nil
 }
@@ -114,14 +115,16 @@ func (p *Parser) parseCallExpression() (Expression, error) {
 	p.nextToken()
 
 	exp := &CallExpression{
-		Operator: operator,
-		Operands: operands,
+		LeftParenToken: currentToken,
+		Operator:       operator,
+		Operands:       operands,
 	}
 
 	return exp, nil
 }
 
 func (p *Parser) parseIfExpression() (Expression, error) {
+	firstToken := p.currentToken
 	p.nextToken()
 
 	predicate, err := p.parseExpression()
@@ -148,13 +151,15 @@ func (p *Parser) parseIfExpression() (Expression, error) {
 	p.nextToken()
 
 	return &IfExpression{
-		Predicate:   predicate,
-		Consequent:  consequent,
-		Alternative: alternative,
+		LeftParenToken: firstToken,
+		Predicate:      predicate,
+		Consequent:     consequent,
+		Alternative:    alternative,
 	}, nil
 }
 
 func (p *Parser) parseDefineExpression() (Expression, error) {
+	firstToken := p.currentToken
 	p.nextToken()
 
 	if p.currentToken.TokenType == lexer.TokenTypeLeftParen {
@@ -227,8 +232,9 @@ func (p *Parser) parseDefineExpression() (Expression, error) {
 			OptionalTailParameter: optionalTailParameter,
 		}
 		return &DefineExpression{
-			Name:  name,
-			Value: lambda,
+			LeftParenToken: firstToken,
+			Name:           name,
+			Value:          lambda,
 		}, nil
 	} else {
 		// (define name body...) -> variable
@@ -249,13 +255,15 @@ func (p *Parser) parseDefineExpression() (Expression, error) {
 
 		p.nextToken()
 		return &DefineExpression{
-			Name:  name,
-			Value: exp,
+			LeftParenToken: firstToken,
+			Name:           name,
+			Value:          exp,
 		}, nil
 	}
 }
 
 func (p *Parser) parseLambdaExpression() (Expression, error) {
+	firstToken := p.currentToken
 	p.nextToken()
 
 	// (lambda (params...) body...)
@@ -292,12 +300,14 @@ func (p *Parser) parseLambdaExpression() (Expression, error) {
 
 	p.nextToken()
 	return &LambdaExpression{
-		Parameters: parameters,
-		Body:       body,
+		LeftParenToken: firstToken,
+		Parameters:     parameters,
+		Body:           body,
 	}, nil
 }
 
 func (p *Parser) parseLetExpression() (Expression, error) {
+	firstToken := p.currentToken
 	p.nextToken()
 
 	// (let ( (var expr) ... ) body ... )
@@ -353,12 +363,14 @@ func (p *Parser) parseLetExpression() (Expression, error) {
 	p.nextToken()
 
 	lambda := &LambdaExpression{
-		Parameters: parameterNames,
-		Body:       body,
+		LeftParenToken: firstToken,
+		Parameters:     parameterNames,
+		Body:           body,
 	}
 	return &CallExpression{
-		Operator: lambda,
-		Operands: parameterExprs,
+		LeftParenToken: firstToken,
+		Operator:       lambda,
+		Operands:       parameterExprs,
 	}, nil
 }
 
@@ -370,11 +382,9 @@ func (p *Parser) parseCondExpression() (Expression, error) {
 	//((predicate2) exp)
 	//(else exp)
 	//)
+	ifFirstToken := p.currentToken
 
 	p.nextToken()
-
-	//tests := make([]Expression, 0)
-	//exprs := make([]Expression, 0)
 	var ifExp *IfExpression
 	var currentIfExp = ifExp
 	for {
@@ -408,7 +418,7 @@ func (p *Parser) parseCondExpression() (Expression, error) {
 			} else if len(exps) == 1 {
 				consequent = exps[0]
 			} else {
-				consequent = &BeginExpression{Expressions: exps}
+				consequent = &BeginExpression{Expressions: exps, LeftParenToken: exps[0].Token()}
 			}
 
 			if !p.match(lexer.TokenTypeRightParen) {
@@ -417,14 +427,16 @@ func (p *Parser) parseCondExpression() (Expression, error) {
 
 			if ifExp == nil {
 				ifExp = &IfExpression{
+					//LeftParenToken: test.Token(),
 					Predicate:  test,
 					Consequent: consequent,
 				}
 				currentIfExp = ifExp
 			} else {
 				newIfExp := &IfExpression{
-					Predicate:  test,
-					Consequent: consequent,
+					LeftParenToken: ifFirstToken,
+					Predicate:      test,
+					Consequent:     consequent,
 				}
 				currentIfExp.Alternative = newIfExp
 				currentIfExp = newIfExp
@@ -439,6 +451,7 @@ func (p *Parser) parseCondExpression() (Expression, error) {
 	if p.currentToken.TokenType != lexer.TokenTypeElse {
 		currentIfExp.Alternative = Void
 	} else {
+		firstToken := p.currentToken
 		p.nextToken()
 
 		exps := make([]Expression, 0)
@@ -456,7 +469,7 @@ func (p *Parser) parseCondExpression() (Expression, error) {
 		} else if len(exps) == 1 {
 			alternative = exps[0]
 		} else {
-			alternative = &BeginExpression{Expressions: exps}
+			alternative = &BeginExpression{Expressions: exps, LeftParenToken: firstToken}
 		}
 		currentIfExp.Alternative = alternative
 
@@ -470,6 +483,7 @@ func (p *Parser) parseCondExpression() (Expression, error) {
 		return nil, NewParsingError(p.currentToken, "expected ')' after cond expression")
 	}
 
+	ifExp.LeftParenToken = ifFirstToken
 	return ifExp, nil
 }
 
@@ -496,6 +510,7 @@ func (p *Parser) parseSetExpression() (Expression, error) {
 }
 
 func (p *Parser) parseBeginExpression() (Expression, error) {
+	firstToken := p.currentToken
 	p.nextToken()
 
 	expressions := make([]Expression, 0)
@@ -513,7 +528,8 @@ func (p *Parser) parseBeginExpression() (Expression, error) {
 
 	p.nextToken()
 	return &BeginExpression{
-		Expressions: expressions,
+		LeftParenToken: firstToken,
+		Expressions:    expressions,
 	}, nil
 }
 
@@ -550,7 +566,7 @@ func (p *Parser) parseGroupExpression() (Expression, error) {
 }
 
 func (p *Parser) parsePrimitiveProcedure() (Expression, error) {
-	exp := &PrimitiveProcedureExpression{Value: p.currentToken.Content}
+	exp := &PrimitiveProcedureExpression{Value: p.currentToken.Content, NameToken: p.currentToken}
 	p.nextToken()
 	return exp, nil
 }
@@ -563,6 +579,7 @@ func (p *Parser) parseIdentifier() (Expression, error) {
 
 func (p *Parser) parseQuoteListExpression() (Expression, error) {
 	// TODO: this implementation is not complete
+	firstToken := p.currentToken
 
 	//> '( '(a))
 	//'('(a))
@@ -604,7 +621,7 @@ func (p *Parser) parseQuoteListExpression() (Expression, error) {
 	}
 
 	p.nextToken()
-	return &ListExpression{Elements: elements}, nil
+	return &ListExpression{LeftParenToken: firstToken, Elements: elements}, nil
 }
 
 func (p *Parser) parseQuoteExpression() (Expression, error) {
