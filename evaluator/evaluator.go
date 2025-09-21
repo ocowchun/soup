@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/ocowchun/soup/parser"
 )
@@ -86,41 +87,45 @@ func addBuiltinToEnv(env *Environment, name string, fn *BuiltinFunction) {
 	env.Put(name, &ReturnValue{Type: BuiltinFunctionType, Data: fn})
 }
 
-func (e *Evaluator) evalNumber(parameter parser.Expression, environment *Environment) (float64, error) {
-	val, err := e.eval(parameter, environment)
-	if err != nil {
-		return 0, err
-	}
-	if val.Type != NumberType {
-		return 0, fmt.Errorf("expected number value, got %T", val)
-	}
-	return val.Number(), nil
+type Number struct {
+	// bad idea, try to improve it later
+	data any
 }
 
-func compareNumber(parameters []*ReturnValue, op string, evaluator *Evaluator, environment *Environment) (int, error) {
-	if len(parameters) != 2 {
-		return 0, fmt.Errorf("'%s' has been called with %d arguments; it requires exactly 1 argument", op, len(parameters))
-	}
+func MakeFloat64Number(data float64) Number {
+	return Number{data: data}
+}
 
-	left := parameters[0]
-	if left.Type != NumberType {
-		return 0, fmt.Errorf("expected number value, got %T", left)
-	}
-	leftVal := left.Number()
+func MakeInt64Number(data int64) Number {
+	return Number{data: data}
+}
 
-	right := parameters[1]
-	if right.Type != NumberType {
-		return 0, fmt.Errorf("expected number value, got %T", right)
-	}
-	rightVal := right.Number()
+func (n Number) isInt64() bool {
+	_, ok := n.data.(int64)
+	return ok
+}
 
-	if leftVal > rightVal {
-		return 1, nil
-	} else if leftVal < rightVal {
-		return -1, nil
-	} else {
-		return 0, nil
+func (n Number) Int64() int64 {
+	num, ok := n.data.(int64)
+	if !ok {
+		panic("number is not int64")
 	}
+	return num
+}
+
+func (n Number) Float64() float64 {
+	num, ok := n.data.(int64)
+	if ok {
+		return float64(num)
+	}
+	return n.data.(float64)
+}
+
+func (n Number) String() string {
+	if num, ok := n.data.(int64); ok {
+		return fmt.Sprintf("%v", num)
+	}
+	return fmt.Sprintf("%v", n.data.(float64))
 }
 
 type Environment struct {
@@ -187,7 +192,15 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 
 	switch exp := expression.(type) {
 	case *parser.NumberLiteral:
-		return &ReturnValue{Type: NumberType, Data: exp.Value}, nil
+		if data, err := strconv.ParseInt(exp.NumToken.Content, 10, 64); err == nil {
+			return &ReturnValue{Type: NumberType, Data: Number{data: data}}, nil
+		}
+
+		f, err := strconv.ParseFloat(exp.NumToken.Content, 64)
+		if err != nil {
+			panic(err)
+		}
+		return &ReturnValue{Type: NumberType, Data: Number{data: f}}, nil
 	case *parser.StringLiteral:
 		return &ReturnValue{Type: StringType, Data: exp.Value}, nil
 	case *parser.SymbolExpression:
@@ -219,10 +232,26 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 		return e.evalSetExpression(exp, environment)
 	case *parser.ListExpression:
 		return e.evalListExpression(exp, environment)
+	case *parser.BeginExpression:
+		return e.evalBeginExpression(exp, environment)
 	default:
 
 		return nil, fmt.Errorf("unsupported expression type: %T", exp)
 	}
+}
+
+func (e *Evaluator) evalBeginExpression(exp *parser.BeginExpression, environment *Environment) (*ReturnValue, error) {
+	for i, subExp := range exp.Expressions {
+		val, err := e.eval(subExp, environment)
+		if err != nil {
+			return nil, err
+		}
+
+		if i == len(exp.Expressions)-1 {
+			return val, nil
+		}
+	}
+	panic("unreachable")
 }
 
 func (e *Evaluator) evalListExpression(exp *parser.ListExpression, environment *Environment) (*ReturnValue, error) {
@@ -307,22 +336,40 @@ func (e *Evaluator) evalCallExpression(exp *parser.CallExpression, environment *
 		return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
 	}
 
+	isOrFn := val.Type == BuiltinFunctionType && operator.String() == "or"
+	isAndFn := val.Type == BuiltinFunctionType && operator.String() == "and"
+
 	operands := make([]*ReturnValue, len(exp.Operands))
 	for i, op := range exp.Operands {
 		operand, err := e.eval(op, environment)
 		if err != nil {
 			return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
 		}
+		// Workaround to support (or 1 bad-exp), to not eval bad-exp
+		if isOrFn && !(operand.Type == ConstantType && operand.Data == FalseValue) {
+			return operand, nil
+		}
+
+		// Workaround to support (and #f bad-exp), to not eval bad-exp
+		if isAndFn && (operand.Type == ConstantType && operand.Data == FalseValue) {
+			return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
+		}
+
 		operands[i] = operand
 	}
 
 	switch val.Type {
 	case BuiltinFunctionType:
+		e.pushProcedureName(operator.String())
+
 		fn := val.BuiltinFunction()
 		ret, err := e.evalBuiltinFunction(fn, operands, environment)
 		if err != nil {
-			return nil, newRuntimeError(err, operator.Token(), e.currentProcedureName())
+			fmt.Println("error", operator.String(), err)
+			return nil, newRuntimeError(err, operator.Token(), e.popProcedureName())
 		}
+
+		e.popProcedureName()
 		return ret, nil
 
 	case ProcedureType:
@@ -332,6 +379,7 @@ func (e *Evaluator) evalCallExpression(exp *parser.CallExpression, environment *
 		if err != nil {
 			return nil, newRuntimeError(err, operator.Token(), e.popProcedureName())
 		}
+		e.popProcedureName()
 		return ret, nil
 	default:
 		err = fmt.Errorf("unsupported operator type: %s(%s)", val.Type, val.String())
@@ -346,54 +394,6 @@ func (e *Evaluator) evalBuiltinFunction(builtinFn *BuiltinFunction, operands []*
 	}
 	return ret, nil
 }
-
-//func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []parser.Expression, environment *Environment) (*ReturnValue, error) {
-//	if procedure.CaneTakeArbitraryParameters() {
-//		if len(procedure.Parameters) > len(operands) {
-//			return nil, fmt.Errorf("expected at least %d arguments, got %d", len(procedure.Parameters), len(operands))
-//		}
-//	} else if len(procedure.Parameters) != len(operands) {
-//		return nil, fmt.Errorf("expected %d arguments, got %d", len(procedure.Parameters), len(operands))
-//	}
-//
-//	// Create a new environment for the procedure call
-//	newEnv := newEnvironment()
-//	newEnv.enclosing = procedure.Env
-//
-//	// Evaluate arguments and bind them to parameters in the new environment
-//	for i, param := range procedure.Parameters {
-//		argVal, err := e.eval(operands[i], environment)
-//		if err != nil {
-//			return nil, err
-//		}
-//		newEnv.Put(param, argVal)
-//	}
-//
-//	if procedure.CaneTakeArbitraryParameters() {
-//		tailArgs := ListValue{Elements: make([]*ReturnValue, 0)}
-//		for i := len(procedure.Parameters); i < len(operands); i++ {
-//			argVal, err := e.eval(operands[i], environment)
-//			if err != nil {
-//				return nil, err
-//			}
-//			tailArgs.Elements = append(tailArgs.Elements, argVal)
-//		}
-//
-//		newEnv.Put(procedure.OptionalTailParameter, &ReturnValue{Type: ListType, Data: &tailArgs})
-//	}
-//
-//	// Evaluate the body of the procedure in the new environment
-//	var result *ReturnValue
-//	var err error
-//	for _, expr := range procedure.Body {
-//		result, err = e.eval(expr, newEnv)
-//		if err != nil {
-//			return nil, err
-//		}
-//	}
-//
-//	return result, nil
-//}
 
 func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []*ReturnValue, environment *Environment) (*ReturnValue, error) {
 	if procedure.CaneTakeArbitraryParameters() {

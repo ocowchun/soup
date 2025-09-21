@@ -136,9 +136,11 @@ func TestEvaluator_Builtin_EqAndCompare(t *testing.T) {
 		{"(= 1 2)", `#f`},
 		{"(and 10 12)", `12`},
 		{"(and 10 #f 20)", `#f`},
+		{"(and #f undefined-proc)", `#f`},
 		{"(or 10 12)", `10`},
 		{"(or 10 #f 20)", `10`},
 		{"(or #f #f)", `#f`},
+		{"(or 1 undefined-proc)", `1`},
 		{"(null? 1)", `#f`},
 		{"(null? #f)", `#f`},
 		{"(null? '(1))", `#f`},
@@ -170,6 +172,7 @@ func TestEvaluator_Builtin_ConOperation(t *testing.T) {
 		{"(cdar '((1 2) (3 4)))", `(2)`},
 		{"(caddr '((1 2) (3 4) (5 6)))", `(5 6)`},
 		{"(cadddr '((1 2) (3 4) (5 6) (7 8)))", `(7 8)`},
+		{`(define l (list 1 2 3)) (set-car! l 4) l`, `(4 2 3)`},
 		{`(define l (list 1 2 3)) (set-cdr! l 4) l`, `(1 . 4)`},
 	}
 
@@ -190,6 +193,23 @@ func TestEvaluator_Builtin_Assoc(t *testing.T) {
 		{"(assoc 5 (list '(3 2) '(2 1) '(1 9) ))", `#f`},
 		{"(assoc 1 (cons (cons 1 2) (cons (cons 2 3) '())))", `(1 . 2)`},
 		{"(assoc 5 (cons (cons 1 2) (cons (cons 2 3) '())))", `#f`},
+	}
+
+	for _, tt := range tests {
+		ret := testEval(tt.input, t)
+		if ret.String() != tt.expectedOutput {
+			t.Fatalf("input %s, expected %s, got %s", tt.input, tt.expectedOutput, ret.String())
+		}
+	}
+}
+
+func TestEvaluator_Builtin_Random(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedOutput string
+	}{
+		{"(random 100)", `44`},
+		{"(random 100.0)", `15.44158638468602`},
 	}
 
 	for _, tt := range tests {

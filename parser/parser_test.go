@@ -1,9 +1,10 @@
 package parser
 
 import (
-	"github.com/ocowchun/soup/lexer"
 	"strings"
 	"testing"
+
+	"github.com/ocowchun/soup/lexer"
 )
 
 // TODO: add test cases for errors
@@ -16,7 +17,7 @@ func TestParser_ParseNumber(t *testing.T) {
 		{"123", "123"},
 		{"45.67", "45.67"},
 		{"-89", "-89"},
-		{"+9527", "9527"},
+		{"+9527", "+9527"},
 	}
 	for _, tt := range tests {
 		text := tt.input

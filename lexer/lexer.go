@@ -41,6 +41,7 @@ const (
 	TokenTypeElse
 	TokenTypeAnd
 	TokenTypeOr
+	TokenTypeNot
 	TokenTypeTrue
 	TokenTypeFalse
 	TokenTypeLess
@@ -101,6 +102,8 @@ func (t TokenType) String() string {
 		return "And"
 	case TokenTypeOr:
 		return "Or"
+	case TokenTypeNot:
+		return "Not"
 	case TokenTypeTrue:
 		return "True"
 	case TokenTypeFalse:
@@ -206,6 +209,7 @@ var keywordMap = map[string]TokenType{
 	"else":   TokenTypeElse,
 	"and":    TokenTypeAnd,
 	"or":     TokenTypeOr,
+	"not":    TokenTypeNot,
 	"true":   TokenTypeTrue,
 	"false":  TokenTypeFalse,
 }

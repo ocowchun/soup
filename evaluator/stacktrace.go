@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ocowchun/soup/lexer"
 )
@@ -41,8 +42,7 @@ func newRuntimeError(err error, token lexer.Token, procedureName string) *Runtim
 	var prevError *RuntimeError
 	if ok := errors.As(err, &prevError); ok {
 		stackTrace := append(prevError.stackTrace, StackTraceElement{
-			lineNumber: prevError.lineNumber,
-			//identifierName: token.Content,
+			lineNumber:     prevError.lineNumber,
 			identifierName: procedureName,
 		})
 
@@ -52,6 +52,7 @@ func newRuntimeError(err error, token lexer.Token, procedureName string) *Runtim
 			stackTrace:      stackTrace,
 		}
 	} else {
+		fmt.Println("yooo error", procedureName)
 		return &RuntimeError{
 			rawErrorMessage: err.Error(),
 			lineNumber:      token.Line,

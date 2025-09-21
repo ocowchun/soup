@@ -18,6 +18,7 @@ const (
 	SymbolType
 	ListType
 	ConsType
+	LazyType
 )
 
 func (t ValueType) String() string {
@@ -38,6 +39,8 @@ func (t ValueType) String() string {
 		return "List"
 	case ConsType:
 		return "Cons"
+	case LazyType:
+		return "Lazy"
 	default:
 		return "Unknown"
 	}
@@ -51,13 +54,16 @@ type ReturnValue struct {
 func (rv *ReturnValue) String() string {
 	switch rv.Type {
 	case NumberType:
-		return fmt.Sprintf("%v", rv.Data)
+		if c, ok := rv.Data.(Number); ok {
+			return c.String()
+		} else {
+			return "<invalid number>"
+		}
 	case StringType:
 		return fmt.Sprintf("\"%s\"", rv.Data)
 	case ConstantType:
 		if c, ok := rv.Data.(ConstantValue); ok {
 			return c.String()
-
 		} else {
 			return "<invalid constant>"
 		}
@@ -96,17 +102,19 @@ func (rv *ReturnValue) String() string {
 		}
 		fmt.Println("invalid cons ->", rv.Data)
 		return "<invalid cons>"
+	case LazyType:
+		return "<lazy>"
 	default:
 		return "<unknown return value type>"
 	}
 }
 
-func (rv *ReturnValue) Number() float64 {
+func (rv *ReturnValue) Number() Number {
 	if rv.Type != NumberType {
 		panic("not a number")
 	}
-	if num, ok := rv.Data.(float64); ok {
-		return num
+	if n, ok := rv.Data.(Number); ok {
+		return n
 	}
 	panic("invalid number")
 }

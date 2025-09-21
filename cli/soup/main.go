@@ -28,12 +28,6 @@ func main() {
 		fmt.Println("file", f)
 		err := runFile(f)
 		if err != nil {
-			//var parsingError *parser.ParsingError
-			//if errors.As(err, &parsingError) {
-			//	fmt.Printf("Parsing error at line %d, got token: `%s` type: %s, error: %s\n",
-			//		parsingError.Token.Line, parsingError.Token.Content, parsingError.Token.TokenType,
-			//		parsingError.Message)
-			//} else {
 			printError(err)
 			//}
 			os.Exit(65)

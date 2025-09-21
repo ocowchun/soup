@@ -75,14 +75,13 @@ func NewParsingError(token lexer.Token, message string) *ParsingError {
 }
 
 func (p *Parser) parseNumber() (*NumberLiteral, error) {
-	num, err := strconv.ParseFloat(p.currentToken.Content, 64)
+	_, err := strconv.ParseFloat(p.currentToken.Content, 64)
 	if err != nil {
 		return nil, NewParsingError(p.currentToken, err.Error())
 	}
 
 	exp := &NumberLiteral{
 		NumToken: p.currentToken,
-		Value:    num,
 	}
 	p.nextToken()
 
@@ -555,6 +554,8 @@ func (p *Parser) parseGroupExpression() (Expression, error) {
 		return p.parseCallExpression()
 	case lexer.TokenTypeOr:
 		return p.parseCallExpression()
+	case lexer.TokenTypeNot:
+		return p.parseCallExpression()
 	case lexer.TokenTypeRightParen:
 		p.nextToken()
 		return &ListExpression{Elements: []Expression{}}, nil
@@ -699,6 +700,8 @@ func (p *Parser) parseExpression() (Expression, error) {
 	case lexer.TokenTypeAnd:
 		return p.parsePrimitiveProcedure()
 	case lexer.TokenTypeOr:
+		return p.parsePrimitiveProcedure()
+	case lexer.TokenTypeNot:
 		return p.parsePrimitiveProcedure()
 	case lexer.TokenTypeQuote:
 		return p.parseQuoteExpression()

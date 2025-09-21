@@ -15,12 +15,11 @@ type Expression interface {
 
 type NumberLiteral struct {
 	NumToken lexer.Token
-	Value    float64
 }
 
 func (n *NumberLiteral) expressionNode() {}
 func (n *NumberLiteral) String() string {
-	return fmt.Sprintf("%v", n.Value)
+	return fmt.Sprintf("%v", n.NumToken.Content)
 }
 func (n *NumberLiteral) Token() lexer.Token {
 	return n.NumToken
