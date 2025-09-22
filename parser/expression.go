@@ -273,3 +273,42 @@ func (b *booleanLiteral) Token() lexer.Token {
 
 var TrueLiteral = &booleanLiteral{Value: true}
 var FalseLiteral = &booleanLiteral{Value: false}
+
+type DelayExpression struct {
+	DelayToken lexer.Token
+	Expression Expression
+}
+
+func (d *DelayExpression) expressionNode() {}
+func (d *DelayExpression) String() string {
+	var sb strings.Builder
+	sb.WriteString("(delay ")
+	sb.WriteString(d.Expression.String())
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (d *DelayExpression) Token() lexer.Token {
+	return d.DelayToken
+}
+
+type StreamExpression struct {
+	ConsStreamToken lexer.Token
+	CarExpression   Expression
+	CdrExpression   Expression
+}
+
+func (s *StreamExpression) expressionNode() {}
+func (s *StreamExpression) String() string {
+	var sb strings.Builder
+	sb.WriteString("(cons-stream ")
+	sb.WriteString(s.CarExpression.String())
+	sb.WriteString(" ")
+	sb.WriteString(s.CdrExpression.String())
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (s *StreamExpression) Token() lexer.Token {
+	return s.ConsStreamToken
+}

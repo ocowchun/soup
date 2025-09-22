@@ -234,10 +234,42 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 		return e.evalListExpression(exp, environment)
 	case *parser.BeginExpression:
 		return e.evalBeginExpression(exp, environment)
+	case *parser.DelayExpression:
+		return e.evalDelayExpression(exp, environment)
+	case *parser.StreamExpression:
+		return e.evalStreamExpression(exp, environment)
 	default:
 
 		return nil, fmt.Errorf("unsupported expression type: %T", exp)
 	}
+}
+
+func (e *Evaluator) evalStreamExpression(exp *parser.StreamExpression, environment *Environment) (*ReturnValue, error) {
+	carVal, err := e.eval(exp.CarExpression, environment)
+	if err != nil {
+		return nil, err
+	}
+
+	promiseCdr := &PromiseValue{
+		Expression:     exp.CdrExpression,
+		Env:            environment,
+		EvaluatedValue: nil,
+	}
+	cons := &ConsValue{
+		Car: carVal,
+		Cdr: &ReturnValue{Type: PromiseType, Data: promiseCdr},
+	}
+
+	return &ReturnValue{Type: ConsType, Data: cons}, nil
+}
+
+func (e *Evaluator) evalDelayExpression(exp *parser.DelayExpression, environment *Environment) (*ReturnValue, error) {
+	//https://groups.csail.mit.edu/mac/ftpdir/scheme-7.4/doc-html/scheme_11.html#IDX1327
+	promise := &PromiseValue{Expression: exp.Expression, Env: environment, EvaluatedValue: nil}
+	return &ReturnValue{
+		Type: PromiseType,
+		Data: promise,
+	}, nil
 }
 
 func (e *Evaluator) evalBeginExpression(exp *parser.BeginExpression, environment *Environment) (*ReturnValue, error) {

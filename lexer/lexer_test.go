@@ -7,7 +7,7 @@ import (
 
 func TestLexer(t *testing.T) {
 	input := `
-(define if lambda let begin set! cond else and or not square > < >= <= + - * / ' "hello" 123 45.67)
+(define if lambda let begin set! cond else and or not delay force cons-stream square > < >= <= + - * / ' "hello" 123 45.67)
 +abc -bcd *cd /de *123 /67 +123 -45.67 #t #f
 . .a a.b
 true false
@@ -26,6 +26,9 @@ true false
 		{Content: "and", Line: 2, TokenType: TokenTypeAnd},
 		{Content: "or", Line: 2, TokenType: TokenTypeOr},
 		{Content: "not", Line: 2, TokenType: TokenTypeNot},
+		{Content: "delay", Line: 2, TokenType: TokenTypeDelay},
+		{Content: "force", Line: 2, TokenType: TokenTypeForce},
+		{Content: "cons-stream", Line: 2, TokenType: TokenTypeConsStream},
 		{Content: "square", Line: 2, TokenType: TokenTypeIdentifier},
 		{Content: ">", Line: 2, TokenType: TokenTypeGreater},
 		{Content: "<", Line: 2, TokenType: TokenTypeLess},

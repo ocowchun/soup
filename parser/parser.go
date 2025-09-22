@@ -559,11 +559,54 @@ func (p *Parser) parseGroupExpression() (Expression, error) {
 	case lexer.TokenTypeRightParen:
 		p.nextToken()
 		return &ListExpression{Elements: []Expression{}}, nil
+	case lexer.TokenTypeDelay:
+		return p.parseDelayExpression()
+	case lexer.TokenTypeConsStream:
+		return p.parseStreamExpression()
 	default:
 		// ( + 1 2 )
 		// ( ( a b) )
 		return p.parseCallExpression()
 	}
+}
+
+func (p *Parser) parseStreamExpression() (Expression, error) {
+	consStreamToken := p.currentToken
+	p.nextToken()
+
+	carExpression, err := p.parseExpression()
+	if err != nil {
+		return nil, NewParsingError(p.currentToken, err.Error())
+	}
+
+	cdrExpression, err := p.parseExpression()
+	if err != nil {
+		return nil, NewParsingError(p.currentToken, err.Error())
+	}
+
+	if !p.match(lexer.TokenTypeRightParen) {
+		return nil, NewParsingError(p.currentToken, "expected ')' at the end of delay expression")
+	}
+
+	return &StreamExpression{
+		ConsStreamToken: consStreamToken,
+		CarExpression:   carExpression,
+		CdrExpression:   cdrExpression,
+	}, nil
+}
+
+func (p *Parser) parseDelayExpression() (Expression, error) {
+	delayToken := p.currentToken
+	p.nextToken()
+
+	exp, err := p.parseExpression()
+	if err != nil {
+		return nil, NewParsingError(p.currentToken, err.Error())
+	}
+	if !p.match(lexer.TokenTypeRightParen) {
+		return nil, NewParsingError(p.currentToken, "expected ')' at the end of delay expression")
+	}
+	return &DelayExpression{Expression: exp, DelayToken: delayToken}, nil
 }
 
 func (p *Parser) parsePrimitiveProcedure() (Expression, error) {
@@ -713,6 +756,8 @@ func (p *Parser) parseExpression() (Expression, error) {
 	case lexer.TokenTypeFalse:
 		p.nextToken()
 		return FalseLiteral, nil
+	case lexer.TokenTypeForce:
+		return p.parsePrimitiveProcedure()
 
 	default:
 		return nil, NewParsingError(p.currentToken, fmt.Sprintf("unexpected token: %s", p.currentToken.TokenType))

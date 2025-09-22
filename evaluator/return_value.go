@@ -18,7 +18,7 @@ const (
 	SymbolType
 	ListType
 	ConsType
-	LazyType
+	PromiseType
 )
 
 func (t ValueType) String() string {
@@ -39,8 +39,8 @@ func (t ValueType) String() string {
 		return "List"
 	case ConsType:
 		return "Cons"
-	case LazyType:
-		return "Lazy"
+	case PromiseType:
+		return "Promise"
 	default:
 		return "Unknown"
 	}
@@ -102,8 +102,8 @@ func (rv *ReturnValue) String() string {
 		}
 		fmt.Println("invalid cons ->", rv.Data)
 		return "<invalid cons>"
-	case LazyType:
-		return "<lazy>"
+	case PromiseType:
+		return "<promise>"
 	default:
 		return "<unknown return value type>"
 	}
@@ -189,6 +189,16 @@ func (rv *ReturnValue) Cons() *ConsValue {
 	panic("invalid cons")
 }
 
+func (rv *ReturnValue) Promise() *PromiseValue {
+	if rv.Type != PromiseType {
+		panic("not a promise")
+	}
+	if promise, ok := rv.Data.(*PromiseValue); ok {
+		return promise
+	}
+	panic("invalid promise")
+}
+
 type ConstantValue uint8
 
 const (
@@ -226,10 +236,6 @@ type BuiltinFunction struct {
 	Fn func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error)
 }
 
-//type SymbolValue struct {
-//	Value string
-//}
-
 type ListValue struct {
 	Elements []*ReturnValue
 }
@@ -237,4 +243,10 @@ type ListValue struct {
 type ConsValue struct {
 	Car *ReturnValue
 	Cdr *ReturnValue
+}
+
+type PromiseValue struct {
+	Expression     parser.Expression
+	Env            *Environment
+	EvaluatedValue *ReturnValue
 }

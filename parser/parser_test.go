@@ -299,3 +299,59 @@ func TestParser_ParseSetExpression(t *testing.T) {
 		}
 	}
 }
+
+func TestParser_ParseDelayExpression(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedString string
+	}{
+		{"(delay (+ 1 2))", "(delay (+ 1 2))"},
+	}
+	for _, tt := range tests {
+		text := tt.input
+		l := lexer.New(strings.NewReader(text))
+		p := New(l)
+
+		program, err := p.Parse()
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(program.Expressions) != 1 {
+			t.Fatalf("expected 1 expression, got %d", len(program.Expressions))
+		}
+
+		exp := program.Expressions[0]
+		if exp.String() != tt.expectedString {
+			t.Fatalf("expected string representation '%s', got %s", tt.expectedString, exp.String())
+		}
+	}
+}
+
+func TestParser_ParseStreamExpression(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedString string
+	}{
+		{"(cons-stream 1 2)", "(cons-stream 1 2)"},
+	}
+	for _, tt := range tests {
+		text := tt.input
+		l := lexer.New(strings.NewReader(text))
+		p := New(l)
+
+		program, err := p.Parse()
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(program.Expressions) != 1 {
+			t.Fatalf("expected 1 expression, got %d", len(program.Expressions))
+		}
+
+		exp := program.Expressions[0]
+		if exp.String() != tt.expectedString {
+			t.Fatalf("expected string representation '%s', got %s", tt.expectedString, exp.String())
+		}
+	}
+}

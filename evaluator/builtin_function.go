@@ -7,7 +7,7 @@ import (
 	"math/rand"
 )
 
-func car(val *ReturnValue) (*ReturnValue, error) {
+func getCar(val *ReturnValue) (*ReturnValue, error) {
 	switch val.Type {
 	case ConsType:
 		cons := val.Cons()
@@ -19,10 +19,10 @@ func car(val *ReturnValue) (*ReturnValue, error) {
 		}
 		return list.Elements[0], nil
 	default:
-		return nil, fmt.Errorf("expected cons or list value, got %s", val.Type)
+		return nil, fmt.Errorf("'car' expected cons or list value, got %s", val.Type)
 	}
 }
-func cdr(val *ReturnValue) (*ReturnValue, error) {
+func getCdr(val *ReturnValue) (*ReturnValue, error) {
 	switch val.Type {
 	case ConsType:
 		cons := val.Cons()
@@ -35,7 +35,7 @@ func cdr(val *ReturnValue) (*ReturnValue, error) {
 		newList := &ListValue{Elements: list.Elements[1:]}
 		return &ReturnValue{Type: ListType, Data: newList}, nil
 	default:
-		return nil, fmt.Errorf("expected cons or list value, got %s", val.Type)
+		return nil, fmt.Errorf("'cdr' expected cons or list value, got %s", val.Type)
 	}
 }
 
@@ -59,12 +59,12 @@ func ConProcedureFactory(operations []ConOperation) *BuiltinFunction {
 			for _, op := range operations {
 				switch op {
 				case CON_OP_CAR:
-					val, err = car(val)
+					val, err = getCar(val)
 					if err != nil {
 						return nil, err
 					}
 				case CON_OP_CDR:
-					val, err = cdr(val)
+					val, err = getCdr(val)
 					if err != nil {
 						return nil, err
 					}
@@ -117,16 +117,54 @@ func compareNumber(parameters []*ReturnValue, op string, evaluator *Evaluator, e
 	}
 }
 
+func force(val *ReturnValue, evaluator *Evaluator) (*ReturnValue, error) {
+	if val.Type != PromiseType {
+		return nil, fmt.Errorf("expected promise type, got %s", val.Type)
+	}
+	promise := val.Promise()
+	if promise.EvaluatedValue != nil {
+		return promise.EvaluatedValue, nil
+	}
+
+	evaluatedValue, err := evaluator.eval(promise.Expression, promise.Env)
+	if err != nil {
+		return nil, err
+	}
+	promise.EvaluatedValue = evaluatedValue
+
+	return evaluatedValue, nil
+
+}
+func isNull(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
+	if len(parameters) != 1 {
+		return nil, fmt.Errorf("'null?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
+	}
+
+	val := parameters[0]
+	if val.Type != ListType {
+		return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
+	}
+
+	if len(val.List().Elements) == 0 {
+		return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+	} else {
+		return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
+	}
+}
+
 func initGlobalEnvironment() *Environment {
 	env := newEnvironment()
 	// Add built-in functions to the environment
+
+	//env["the-empty-stream"]
+	env.Put("the-empty-stream", &ReturnValue{Type: ListType, Data: &ListValue{Elements: make([]*ReturnValue, 0)}})
 
 	addBuiltinToEnv(env, "+", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			res := float64(0)
 			for _, val := range parameters {
 				if val.Type != NumberType {
-					return nil, errors.New("all arguments to '+' must be numbers")
+					return nil, fmt.Errorf("all arguments to '+' must be numbers, got %s", val.Type)
 				}
 				res += val.Number().Float64()
 			}
@@ -143,7 +181,7 @@ func initGlobalEnvironment() *Environment {
 			if len(parameters) == 1 {
 				val := parameters[0]
 				if val.Type != NumberType {
-					return nil, errors.New("all arguments to '-' must be numbers")
+					return nil, fmt.Errorf("all arguments to '-' must be numbers, got %s", val.Type)
 				}
 				num := val.Number()
 				if num.isInt64() && num.Int64() != math.MinInt64 {
@@ -157,7 +195,7 @@ func initGlobalEnvironment() *Environment {
 			res := float64(0)
 			for i, val := range parameters {
 				if val.Type != NumberType {
-					return nil, errors.New("all arguments to '-' must be numbers")
+					return nil, fmt.Errorf("all arguments to '-' must be numbers, got %s", val.Type)
 				}
 
 				if i == 0 {
@@ -181,7 +219,7 @@ func initGlobalEnvironment() *Environment {
 
 			for _, parameter := range parameters {
 				if parameter.Type != NumberType {
-					return nil, errors.New("all arguments to '*' must be numbers")
+					return nil, fmt.Errorf("all arguments to '*' must be numbers, got %s", parameter.Type)
 				}
 				res *= parameter.Number().Float64()
 			}
@@ -199,6 +237,9 @@ func initGlobalEnvironment() *Environment {
 			}
 
 			for i, parameter := range parameters {
+				if parameter.Type != NumberType {
+					return nil, fmt.Errorf("all arguments to '/' must be numbers, got %s", parameter.Type)
+				}
 				if i == 0 {
 					res = parameter.Number().Float64()
 				} else {
@@ -495,15 +536,28 @@ func initGlobalEnvironment() *Environment {
 	})
 
 	// cons
+	//https://groups.csail.mit.edu/mac/ftpdir/scheme-7.4/doc-html/scheme_8.html#SEC73
 	addBuiltinToEnv(env, "cons", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			if len(parameters) != 2 {
 				return nil, fmt.Errorf("'cons' has been called with %d arguments; it requires exactly 2 arguments", len(parameters))
 			}
+			car := parameters[0]
+			cdr := parameters[1]
+			if cdr.Type == ListType {
+				cdrList := cdr.List()
+				list := &ListValue{Elements: []*ReturnValue{car}}
+				if len(cdrList.Elements) == 0 {
+					return &ReturnValue{Type: ListType, Data: list}, nil
+				}
+
+				list.Elements = append(list.Elements, cdrList.Elements...)
+				return &ReturnValue{Type: ListType, Data: list}, nil
+			}
 
 			cons := &ConsValue{
-				Car: parameters[0],
-				Cdr: parameters[1],
+				Car: car,
+				Cdr: cdr,
 			}
 			return &ReturnValue{Type: ConsType, Data: cons}, nil
 		},
@@ -602,23 +656,28 @@ func initGlobalEnvironment() *Environment {
 		},
 	})
 
-	addBuiltinToEnv(env, "null?", &BuiltinFunction{
+	addBuiltinToEnv(env, "stream-car", ConProcedureFactory([]ConOperation{CON_OP_CAR}))
+	addBuiltinToEnv(env, "stream-cdr", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'null?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
+				return nil, fmt.Errorf("'stream-cdr' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
 			}
 
 			val := parameters[0]
-			if val.Type != ListType {
-				return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
+			if val.Type != ConsType {
+				return nil, fmt.Errorf("first argument to 'stream-cdr' must be a cons , got %T", val.Type)
 			}
 
-			if len(val.List().Elements) == 0 {
-				return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
-			} else {
-				return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
-			}
+			return force(val.Cons().Cdr, evaluator)
 		},
+	})
+
+	addBuiltinToEnv(env, "stream-null?", &BuiltinFunction{
+		Fn: isNull,
+	})
+
+	addBuiltinToEnv(env, "null?", &BuiltinFunction{
+		Fn: isNull,
 	})
 
 	addBuiltinToEnv(env, "display", &BuiltinFunction{
@@ -661,6 +720,33 @@ func initGlobalEnvironment() *Environment {
 			fmt.Println(val.String())
 
 			return &ReturnValue{Type: ConstantType, Data: VoidConst}, nil
+		},
+	})
+
+	// https://docs.scheme.org/schintro/schintro_69.html
+	addBuiltinToEnv(env, "apply", &BuiltinFunction{
+		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
+			if len(parameters) < 2 {
+				return nil, fmt.Errorf("'apply' has been called with %d arguments; it requires at least 2 arguments", len(parameters))
+			}
+			// TODO: actually I don't know the point of 3rd and later arguments, current implementation simply skip those arguments
+
+			proc := parameters[0]
+			list := parameters[1]
+			if list.Type != ListType {
+				return nil, fmt.Errorf("'apply' expect second argument to be list but got %s", list.Type)
+			}
+
+			switch proc.Type {
+			case BuiltinFunctionType:
+				fn := proc.BuiltinFunction()
+				return evaluator.evalBuiltinFunction(fn, list.List().Elements, environment)
+			case ProcedureType:
+				fn := proc.Procedure()
+				return evaluator.evalProcedure(fn, list.List().Elements, environment)
+			default:
+				return nil, fmt.Errorf("'apply' expect first argument to be procedure/builtinFunction but got %s", list.Type)
+			}
 		},
 	})
 
@@ -804,16 +890,13 @@ func initGlobalEnvironment() *Environment {
 	})
 
 	r := rand.New(rand.NewSource(9527))
-	// TODO: implement random
 	// https://groups.csail.mit.edu/mac/ftpdir/scheme-7.4/doc-html/scheme_5.html#SEC53
 	addBuiltinToEnv(env, "random", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			// TODO: implement random-state
 			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'random' has been called with %d arguments; it exactly 1 argument", len(parameters))
+				return nil, fmt.Errorf("'random' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
 			}
-
-			// how to handle int64 and float64
 
 			val := parameters[0]
 			if val.Type != NumberType {
@@ -827,6 +910,16 @@ func initGlobalEnvironment() *Environment {
 
 			res := r.Float64() * val.Number().Float64()
 			return &ReturnValue{Type: NumberType, Data: MakeFloat64Number(res)}, nil
+		},
+	})
+
+	addBuiltinToEnv(env, "force", &BuiltinFunction{
+		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
+			if len(parameters) != 1 {
+				return nil, fmt.Errorf("'force' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
+			}
+
+			return force(parameters[0], evaluator)
 		},
 	})
 

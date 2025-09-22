@@ -1,0 +1,247 @@
+(define (stream-ref s n)
+  (if (= n 0)
+      (stream-car s)
+      (stream-ref (stream-cdr s) (- n 1))))
+
+
+(define (stream-map proc . argstreams)
+  (if  (stream-null? (car argstreams))
+    the-empty-stream
+    (cons-stream
+      (apply proc (map car argstreams))
+      (apply stream-map (cons proc (map stream-cdr argstreams)))
+     )
+    )
+  )
+
+(define (stream-for-each proc s)
+  (if (stream-null? s)
+      'done
+      (begin
+        (proc (stream-car s))
+        (stream-for-each proc
+                         (stream-cdr s)))))
+
+(define (stream-filter pred stream)
+  (cond ((stream-null? stream)
+         the-empty-stream)
+        ((pred (stream-car stream))
+         (cons-stream
+          (stream-car stream)
+          (stream-filter
+           pred
+           (stream-cdr stream))))
+        (else (stream-filter
+               pred
+               (stream-cdr stream)))))
+
+(define (stream-enumerate-interval low high)
+  (if (> low high)
+      the-empty-stream
+      (cons-stream
+       low
+       (stream-enumerate-interval (+ low 1)
+                                  high))))
+
+(define (display-stream s)
+  (stream-for-each display-line s))
+
+(define (display-line x)
+  (newline)
+  (display x))
+
+(define s1 (stream-enumerate-interval 1 5))
+(define s2 (stream-enumerate-interval 10 14))
+(define (double num) (* num 2))
+(map stream-cdr (list s1 s2) )
+
+(print "show stream map")
+(display-stream (stream-map (lambda (x) (* x 3)) s1))
+(newline)
+
+
+(define (integers-starting-from n)
+  (cons-stream
+   n (integers-starting-from (+ n 1))))
+(define integers (integers-starting-from 1))
+
+(define (divisible? x y) (= (remainder x y) 0))
+(define no-sevens
+  (stream-filter (lambda (x)
+                   (not (divisible? x 7)))
+                 integers))
+
+(display "no-sevens ")
+(display (stream-ref no-sevens 100))
+(newline)
+
+
+(define (sieve stream)
+  (cons-stream
+   (stream-car stream)
+   (sieve (stream-filter
+           (lambda (x)
+             (not (divisible?
+                   x (stream-car stream))))
+           (stream-cdr stream)))))
+
+(define primes
+  (sieve (integers-starting-from 2)))
+
+(display "primes ")
+(display (stream-ref primes 50))
+(newline)
+
+(define (add-streams s1 s2)
+  (stream-map + s1 s2))
+
+(define ones (cons-stream 1 ones))
+
+(define integers
+  (cons-stream 1 (add-streams ones integers)))
+
+(add-streams ones ones)
+
+(define fibs
+  (cons-stream
+   0 (cons-stream
+      1 (add-streams
+         (stream-cdr fibs) fibs))))
+;;; TODO fix it
+(display "fibs ")
+(display (stream-ref fibs 10))
+(newline)
+
+(define (square x) (* x x))
+
+(define (prime? n)
+  (define (iter ps)
+    (cond ((> (square (stream-car ps)) n) true)
+          ((divisible? n (stream-car ps)) false)
+          (else (iter (stream-cdr ps)))))
+  (iter primes))
+
+(define primes
+  (cons-stream
+   2 (stream-filter
+      prime? (integers-starting-from 3))))
+
+(display "primes again ")
+(display (stream-ref primes 50))
+(newline)
+
+(define (average a b) (/ (+ a b) 2.0) )
+
+(define (sqrt-improve guess x)
+  (average guess (/ x guess)))
+
+(define (sqrt-stream x)
+  (define guesses
+    (cons-stream
+     1.0 (stream-map
+          (lambda (guess)
+            (sqrt-improve guess x))
+          guesses)))
+  guesses)
+
+(print "sqrt-stream")
+(stream-ref (stream-map (lambda (x) (begin (print x) x)) (sqrt-stream 2)) 5)
+(newline)
+
+(define (pi-summands n)
+  (cons-stream
+   (/ 1.0 n)
+   (stream-map - (pi-summands (+ n 2)))))
+
+(define (scale-stream stream factor)
+  (stream-map
+   (lambda (x) (* x factor))
+   stream))
+
+(define (partial-sums s)
+    (cons-stream
+        (car s)
+        (add-streams (stream-cdr s) (partial-sums s))
+    )
+)
+
+;(stream-ref (partial-sums integers) 4)
+
+(define pi-stream
+  (scale-stream
+   (partial-sums (pi-summands 1)) 4))
+
+(print "pi")
+(stream-ref (stream-map (lambda (x) (begin (print x) x)) pi-stream) 10)
+(newline)
+
+
+(define (euler-transform s)
+  (let ((s0 (stream-ref s 0))     ; Sₙ₋₁
+        (s1 (stream-ref s 1))     ; Sₙ
+        (s2 (stream-ref s 2)))    ; Sₙ₊₁
+    (cons-stream
+     (- s2 (/ (square (- s2 s1))
+              (+ s0 (* -2 s1) s2)))
+     (euler-transform (stream-cdr s)))))
+
+(print "pi improvement with euler-transform")
+(stream-ref (stream-map (lambda (x) (begin (print x) x))  (euler-transform pi-stream)) 10)
+(newline)
+
+(define (make-tableau transform s)
+  (cons-stream
+   s
+   (make-tableau
+    transform
+    (transform s))))
+
+(define (accelerated-sequence transform s)
+  (stream-map stream-car
+              (make-tableau transform s)))
+
+(print "pi improvement with euler-transform and accelerated-sequence")
+(stream-ref (stream-map (lambda (x) (begin (print x) x))  (accelerated-sequence euler-transform pi-stream)) 5)
+(newline)
+
+
+(define (stream-append s1 s2)
+  (if (stream-null? s1)
+      s2
+      (cons-stream
+       (stream-car s1)
+       (stream-append (stream-cdr s1) s2))))
+
+(define (interleave s1 s2)
+  (if (stream-null? s1)
+      s2
+      (cons-stream
+       (stream-car s1)
+       (interleave s2 (stream-cdr s1)))))
+
+(define (pairs s t)
+  (cons-stream
+   (list (stream-car s) (stream-car t))
+   (interleave
+    (stream-map (lambda (x)
+                  (list (stream-car s) x))
+                (stream-cdr t))
+    (pairs (stream-cdr s) (stream-cdr t)))))
+
+
+(define (integral integrand initial-value dt)
+  (define int
+    (cons-stream
+     initial-value
+     (add-streams (scale-stream integrand dt)
+                  int)))
+  int)
+
+(define (solve f y0 dt)
+  (define y (integral dy y0 dt))
+  (define dy (stream-map f y))
+  y)
+
+; TODO: fix dy
+(stream-ref
+ (solve (lambda (y) y) 1 0.001) 1000)

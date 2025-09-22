@@ -161,6 +161,10 @@ func TestEvaluator_Builtin_ConOperation(t *testing.T) {
 		expectedOutput string
 	}{
 		{"(cons 1 2)", `(1 . 2)`},
+		{"(cons 1 '())", `(1)`},
+		{"(cons '(1) '(2 3 4))", `((1) 2 3 4)`},
+		{"(cons \"1\" '(2 3 4))", `("1" 2 3 4)`},
+		{"(cons '(1 2) 3)", `((1 2) . 3)`},
 		{"(car (cons 1 2))", `1`},
 		{"(cdr (cons 1 2))", `2`},
 		{"(car '(1 2 3))", `1`},
@@ -227,6 +231,61 @@ func TestEvaluator_Procedure(t *testing.T) {
 	}{
 		{"(define (add a b) (+ a b)) (add 1 2)", `3`},
 		{"(define (increment a) (+ a 1)) (increment 1)", `2`},
+	}
+
+	for _, tt := range tests {
+		ret := testEval(tt.input, t)
+		if ret.String() != tt.expectedOutput {
+			t.Fatalf("input %s, expected %s, got %s", tt.input, tt.expectedOutput, ret.String())
+		}
+	}
+}
+
+func TestEvaluator_DelayAndForce(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedOutput string
+	}{
+		{"(delay (+ 1 2))", `<promise>`},
+		{"(force (delay (+ 1 2)))", `3`},
+	}
+
+	for _, tt := range tests {
+		ret := testEval(tt.input, t)
+		if ret.String() != tt.expectedOutput {
+			t.Fatalf("input %s, expected %s, got %s", tt.input, tt.expectedOutput, ret.String())
+		}
+	}
+}
+
+func TestEvaluator_Stream(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedOutput string
+	}{
+		{"(cons-stream 1 2)", `(1 . <promise>)`},
+		{"(car (cons-stream 1 2))", `1`},
+		{"(cdr (cons-stream 1 2))", `<promise>`},
+		{"(stream-car (cons-stream 1 2))", `1`},
+		{"(stream-cdr (cons-stream 1 2))", `2`},
+		{"(stream-null? (cons-stream 1 2))", `#f`},
+		{"(stream-null? '())", `#t`},
+	}
+
+	for _, tt := range tests {
+		ret := testEval(tt.input, t)
+		if ret.String() != tt.expectedOutput {
+			t.Fatalf("input %s, expected %s, got %s", tt.input, tt.expectedOutput, ret.String())
+		}
+	}
+}
+
+func TestEvaluator_Apply(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedOutput string
+	}{
+		{"(apply + '(1 2 3))", `6`},
 	}
 
 	for _, tt := range tests {

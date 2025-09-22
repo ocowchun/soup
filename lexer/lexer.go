@@ -48,6 +48,9 @@ const (
 	TokenTypeGreater
 	TokenTypeLessEqual
 	TokenTypeGreaterEqual
+	TokenTypeDelay
+	TokenTypeForce
+	TokenTypeConsStream
 )
 
 func (t TokenType) String() string {
@@ -116,6 +119,12 @@ func (t TokenType) String() string {
 		return "LessEqual"
 	case TokenTypeGreaterEqual:
 		return "GreaterEqual"
+	case TokenTypeDelay:
+		return "Delay"
+	case TokenTypeForce:
+		return "Force"
+	case TokenTypeConsStream:
+		return "ConsStream"
 	default:
 		return "Unknown"
 	}
@@ -199,19 +208,22 @@ func (l *Lexer) readNextLine() bool {
 }
 
 var keywordMap = map[string]TokenType{
-	"define": TokenTypeDefine,
-	"if":     TokenTypeIf,
-	"lambda": TokenTypeLambda,
-	"let":    TokenTypeLet,
-	"begin":  TokenTypeBegin,
-	"set!":   TokenTypeSet,
-	"cond":   TokenTypeCond,
-	"else":   TokenTypeElse,
-	"and":    TokenTypeAnd,
-	"or":     TokenTypeOr,
-	"not":    TokenTypeNot,
-	"true":   TokenTypeTrue,
-	"false":  TokenTypeFalse,
+	"define":      TokenTypeDefine,
+	"if":          TokenTypeIf,
+	"lambda":      TokenTypeLambda,
+	"let":         TokenTypeLet,
+	"begin":       TokenTypeBegin,
+	"set!":        TokenTypeSet,
+	"cond":        TokenTypeCond,
+	"else":        TokenTypeElse,
+	"and":         TokenTypeAnd,
+	"or":          TokenTypeOr,
+	"not":         TokenTypeNot,
+	"true":        TokenTypeTrue,
+	"false":       TokenTypeFalse,
+	"delay":       TokenTypeDelay,
+	"force":       TokenTypeForce,
+	"cons-stream": TokenTypeConsStream,
 }
 
 func (l *Lexer) readIdentifierOrKeyword() (Token, error) {
