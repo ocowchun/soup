@@ -238,8 +238,11 @@
   int)
 
 (define (solve f y0 dt)
+    ;workaround
+   (define dy ones)
   (define y (integral dy y0 dt))
-  (define dy (stream-map f y))
+   (set! dy (stream-map f y))
+;  (define dy (stream-map f y))
   y)
 
 ; TODO: fix dy
