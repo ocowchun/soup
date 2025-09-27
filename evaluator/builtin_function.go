@@ -880,7 +880,6 @@ func initGlobalEnvironment() *Environment {
 
 			val := parameters[0]
 			if len(parameters) == 1 {
-				//panic(fmt.Sprintf("failed to evaluate: %s", val.String()))
 				return nil, fmt.Errorf("failed to evaluate: %s", val.String())
 
 			}

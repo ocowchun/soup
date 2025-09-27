@@ -415,13 +415,38 @@ func (e *Evaluator) evalProcedure(procedure *ProcedureValue, operands []*ReturnV
 		newEnv.Put(procedure.OptionalTailParameter, &ReturnValue{Type: ListType, Data: &tailArgs})
 	}
 
+	// declare inner variables first, implement it this way to support below script
+	//(define (solve f y0 dt)
+	//  (define dy ones)
+	//  (define y (integral dy y0 dt))
+	//  (define dy (stream-map f y))
+	//  y)
+	innerDefines := map[string]*ReturnValue{}
+	for _, expr := range procedure.Body {
+		if d, ok := expr.(*parser.DefineExpression); ok {
+			initValue := &ReturnValue{Type: ConstantType, Data: VoidConst}
+			innerDefines[d.Name] = initValue
+			newEnv.Put(d.Name, initValue)
+		}
+	}
+
 	// Evaluate the body of the procedure in the new environment
 	var result *ReturnValue
 	var err error
 	for _, expr := range procedure.Body {
-		result, err = e.eval(expr, newEnv)
-		if err != nil {
-			return nil, err
+		if d, ok := expr.(*parser.DefineExpression); ok {
+			// define inner variables
+			result, err = e.eval(d.Value, newEnv)
+			if err != nil {
+				return nil, err
+			}
+			innerDefines[d.Name].Type = result.Type
+			innerDefines[d.Name].Data = result.Data
+		} else {
+			result, err = e.eval(expr, newEnv)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

@@ -80,9 +80,9 @@
     )
   )
 
-(define (after-delay delay action)
+(define (after-delay delayTime action)
   (add-to-agenda!
-    (+ delay (current-time the-agenda))
+    (+ delayTime (current-time the-agenda))
     action
     the-agenda
     )

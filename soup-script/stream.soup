@@ -238,13 +238,10 @@
   int)
 
 (define (solve f y0 dt)
-    ;workaround
-   (define dy ones)
+  (define dy ones)
   (define y (integral dy y0 dt))
-   (set! dy (stream-map f y))
-;  (define dy (stream-map f y))
+  (define dy (stream-map f y))
   y)
 
-; TODO: fix dy
 (stream-ref
  (solve (lambda (y) y) 1 0.001) 1000)

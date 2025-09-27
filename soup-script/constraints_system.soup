@@ -127,7 +127,9 @@
   (define (print-probe value)
     (newline) (display "Probe: ")
     (display name) (display " = ")
-    (display value))
+    (display value)
+    (newline)
+    )
   (define (process-new-value)
     (print-probe (get-value connector)))
   (define (process-forget-value)
@@ -142,10 +144,12 @@
   (connect connector me)
   me)
 
-(define (make-connector)
+(define (make-connector name)
   (let ((value false)
         (informant false)
-        (constraints '()))
+        (constraints '())
+        (connector-name name)
+        )
     (define (set-my-value newval setter)
       (cond ((not (has-value? me))
              (set! value newval)
@@ -160,12 +164,12 @@
             (else 'ignored)))
     (define (forget-my-value retractor)
       (if (eq? retractor informant)
-          (begin (set! informant false)
+          (begin (display connector-name) (display retractor)(display informant)(print " retractor eq informant")(set! informant false)
                  (for-each-except
                   retractor
                   inform-about-no-value
                   constraints))
-          'ignored))
+          (begin (display connector-name)(print " retractor not eq informant") 'ignored)))
     (define (connect new-constraint)
       (if (not (memq new-constraint
                      constraints))
@@ -191,11 +195,11 @@
 
 
 (define (celsius-fahrenheit-converter c f)
-  (let ((u (make-connector))
-        (v (make-connector))
-        (w (make-connector))
-        (x (make-connector))
-        (y (make-connector)))
+  (let ((u (make-connector "u"))
+        (v (make-connector "v"))
+        (w (make-connector "w"))
+        (x (make-connector "x"))
+        (y (make-connector "y")))
     (multiplier c w u)
     (multiplier v x u)
     (adder v y f)
@@ -205,8 +209,8 @@
     'ok))
 
 
-(define C (make-connector))
-(define F (make-connector))
+(define C (make-connector "C"))
+(define F (make-connector "F"))
 
 (has-value? C)
 (celsius-fahrenheit-converter C F)
@@ -218,6 +222,7 @@
 (set-value! C 25 'user)
 (newline)
 
+(print "trigger forget-value")
 (forget-value! C 'user)
 (newline)
 

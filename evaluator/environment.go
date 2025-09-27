@@ -32,8 +32,7 @@ func (env *Environment) Get(key string) (*ReturnValue, bool) {
 func (env *Environment) Update(key string, value *ReturnValue) (*ReturnValue, error) {
 	oldVal, ok := env.store[key]
 	if ok {
-		env.store[key].Type = value.Type
-		env.store[key].Data = value.Data
+		env.store[key] = value
 		return oldVal, nil
 	} else if env.enclosing != nil {
 		return env.enclosing.Update(key, value)
