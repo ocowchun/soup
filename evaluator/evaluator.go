@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/ocowchun/soup/parser"
@@ -12,8 +13,8 @@ type Evaluator struct {
 	procedureNames []string
 }
 
-func New() *Evaluator {
-	env := initGlobalEnvironment()
+func New(stdin io.Reader) *Evaluator {
+	env := initGlobalEnvironment(stdin)
 	return &Evaluator{globalEnv: env, procedureNames: []string{}}
 }
 
@@ -92,6 +93,18 @@ type Number struct {
 	data any
 }
 
+func MakeNumber(content string) (*ReturnValue, error) {
+	if data, err := strconv.ParseInt(content, 10, 64); err == nil {
+		return &ReturnValue{Type: NumberType, Data: Number{data: data}}, nil
+	}
+
+	f, err := strconv.ParseFloat(content, 64)
+	if err != nil {
+		panic(err)
+	}
+	return &ReturnValue{Type: NumberType, Data: Number{data: f}}, nil
+}
+
 func MakeFloat64Number(data float64) Number {
 	return Number{data: data}
 }
@@ -153,15 +166,7 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 
 	switch exp := expression.(type) {
 	case *parser.NumberLiteral:
-		if data, err := strconv.ParseInt(exp.NumToken.Content, 10, 64); err == nil {
-			return &ReturnValue{Type: NumberType, Data: Number{data: data}}, nil
-		}
-
-		f, err := strconv.ParseFloat(exp.NumToken.Content, 64)
-		if err != nil {
-			panic(err)
-		}
-		return &ReturnValue{Type: NumberType, Data: Number{data: f}}, nil
+		return MakeNumber(exp.NumToken.Content)
 	case *parser.StringLiteral:
 		return &ReturnValue{Type: StringType, Data: exp.Value}, nil
 	case *parser.SymbolExpression:

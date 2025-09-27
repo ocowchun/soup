@@ -105,6 +105,9 @@ func TestEvaluator_Builtin_EqAndCompare(t *testing.T) {
 		{"(number? 'a)", `#f`},
 		{"(symbol? 1)", `#f`},
 		{"(symbol? 'a)", `#t`},
+		{"(string? 1)", `#f`},
+		{"(string? 'a)", `#f`},
+		{"(string? \"foo\")", `#t`},
 		{"(pair? 'a)", `#f`},
 		{"(pair? '(1 2 3))", `#t`},
 		{"(pair? '())", `#f`},
@@ -175,6 +178,8 @@ func TestEvaluator_Builtin_ConOperation(t *testing.T) {
 		{"(cadr '(1 2 3))", `2`},
 		{"(cdar '((1 2) (3 4)))", `(2)`},
 		{"(caddr '((1 2) (3 4) (5 6)))", `(5 6)`},
+		{"(cddr '((1 2) (3 4) (5 6)))", `((5 6))`},
+		{"(cdddr '((1 2) (3 4) (5 6) (7 8)))", `((7 8))`},
 		{"(cadddr '((1 2) (3 4) (5 6) (7 8)))", `(7 8)`},
 		{`(define l (list 1 2 3)) (set-car! l 4) l`, `(4 2 3)`},
 		{`(define l (list 1 2 3)) (set-cdr! l 4) l`, `(1 . 4)`},
@@ -296,6 +301,52 @@ func TestEvaluator_Apply(t *testing.T) {
 	}
 }
 
+func TestEvaluator_Length(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedOutput string
+	}{
+		{"(length '(1 2 3))", `3`},
+	}
+
+	for _, tt := range tests {
+		ret := testEval(tt.input, t)
+		if ret.String() != tt.expectedOutput {
+			t.Fatalf("input %s, expected %s, got %s", tt.input, tt.expectedOutput, ret.String())
+		}
+	}
+}
+
+func TestEvaluator_Read(t *testing.T) {
+	tests := []struct {
+		stdinInput     string
+		expectedOutput string
+	}{
+		{"(1 2 3)", `(1 2 3)`},
+		{"1", `1`},
+		{"foo", `'foo`},
+		{"(1 2 3 (4 5 6))", `(1 2 3 (4 5 6))`},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(strings.NewReader("(read)"))
+		p := parser.New(l)
+		program, err := p.Parse()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		evaluator := New(strings.NewReader(tt.stdinInput))
+		ret, err := evaluator.Eval(program)
+		if err != nil {
+			t.Fatalf("stdinInput %s unexpected error: %v", tt.stdinInput, err)
+		}
+		if ret.String() != tt.expectedOutput {
+			t.Fatalf("input %s, expected %s, got %s", tt.stdinInput, tt.expectedOutput, ret.String())
+		}
+	}
+}
+
 func testEval(input string, t *testing.T) *ReturnValue {
 	l := lexer.New(strings.NewReader(input))
 	p := parser.New(l)
@@ -304,7 +355,7 @@ func testEval(input string, t *testing.T) *ReturnValue {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	evaluator := New()
+	evaluator := New(strings.NewReader(""))
 	result, err := evaluator.Eval(program)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

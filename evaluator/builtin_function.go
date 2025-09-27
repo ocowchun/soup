@@ -1,10 +1,14 @@
 package evaluator
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
+
+	"github.com/ocowchun/soup/lexer"
 )
 
 func getCar(val *ReturnValue) (*ReturnValue, error) {
@@ -152,7 +156,7 @@ func isNull(parameters []*ReturnValue, evaluator *Evaluator, environment *Enviro
 	}
 }
 
-func initGlobalEnvironment() *Environment {
+func initGlobalEnvironment(stdin io.Reader) *Environment {
 	env := newEnvironment()
 	// Add built-in functions to the environment
 
@@ -331,6 +335,21 @@ func initGlobalEnvironment() *Environment {
 		},
 	})
 
+	addBuiltinToEnv(env, "string?", &BuiltinFunction{
+		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
+			if len(parameters) != 1 {
+				return nil, fmt.Errorf("'string?' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
+			}
+
+			val := parameters[0]
+			if val.Type == StringType {
+				return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+			} else {
+				return &ReturnValue{Type: ConstantType, Data: FalseValue}, nil
+			}
+		},
+	})
+
 	addBuiltinToEnv(env, "symbol?", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			if len(parameters) != 1 {
@@ -391,6 +410,11 @@ func initGlobalEnvironment() *Environment {
 				return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
 			}
 
+			if val1.Type == ConstantType && val2.Type == ConstantType {
+				if val1.Constant() == val2.Constant() {
+					return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+				}
+			}
 			if val1.Type == NumberType && val2.Type == NumberType {
 				if val1.Number() == val2.Number() {
 					return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
@@ -570,6 +594,21 @@ func initGlobalEnvironment() *Environment {
 		},
 	})
 
+	addBuiltinToEnv(env, "length", &BuiltinFunction{
+		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
+			if len(parameters) != 1 {
+				return nil, fmt.Errorf("'length' has been called with %d arguments; it requires exactly 1 arguments", len(parameters))
+			}
+
+			parameter := parameters[0]
+			if parameter.Type != ListType {
+				return nil, fmt.Errorf("expected list value, got %s", parameter.Type)
+			}
+
+			return &ReturnValue{Type: NumberType, Data: MakeInt64Number(int64(len(parameter.List().Elements)))}, nil
+		},
+	})
+
 	addBuiltinToEnv(env, "append", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			if len(parameters) < 2 {
@@ -592,8 +631,10 @@ func initGlobalEnvironment() *Environment {
 	addBuiltinToEnv(env, "cdr", ConProcedureFactory([]ConOperation{CON_OP_CDR}))
 	addBuiltinToEnv(env, "caar", ConProcedureFactory([]ConOperation{CON_OP_CAR, CON_OP_CAR}))
 	addBuiltinToEnv(env, "cadr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CAR}))
+	addBuiltinToEnv(env, "cddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "cdar", ConProcedureFactory([]ConOperation{CON_OP_CAR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "caddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
+	addBuiltinToEnv(env, "cdddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "cadddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
 
 	//https://groups.csail.mit.edu/mac/ftpdir/scheme-7.4/doc-html/scheme_8.html
@@ -922,6 +963,63 @@ func initGlobalEnvironment() *Environment {
 		},
 	})
 
+	//https: //docs.scheme.org/schintro/schintro_115.html#SEC135
+	addBuiltinToEnv(env, "read", &BuiltinFunction{
+		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
+			if len(parameters) != 0 {
+				return nil, fmt.Errorf("'read' has been called with %d arguments; it requires exactly 0 argument", len(parameters))
+			}
+
+			reader := bufio.NewReader(stdin)
+			return read(reader)
+		},
+	})
+
 	// Add more built-in functions as needed
 	return env
+}
+
+func readList(l *lexer.Lexer) (*ListValue, error) {
+	list := &ListValue{Elements: make([]*ReturnValue, 0)}
+	for {
+		tok := l.NextToken()
+		if tok.TokenType == lexer.TokenTypeRightParen {
+			return list, nil
+		} else if tok.TokenType == lexer.TokenTypeLeftParen {
+			subList, err := readList(l)
+			if err != nil {
+				return nil, err
+			}
+			list.Elements = append(list.Elements, &ReturnValue{Type: ListType, Data: subList})
+		} else if tok.TokenType == lexer.TokenTypeNumber {
+			num, err := MakeNumber(tok.Content)
+			if err != nil {
+				return nil, err
+			}
+			list.Elements = append(list.Elements, num)
+		} else if tok.TokenType == lexer.TokenTypeEOF || tok.TokenType == lexer.TokenTypeInvalid {
+			panic("unreachable")
+		} else {
+			sym := &ReturnValue{Type: SymbolType, Data: tok.Content}
+			list.Elements = append(list.Elements, sym)
+		}
+	}
+}
+
+func read(reader io.Reader) (*ReturnValue, error) {
+	l := lexer.New(reader)
+	firstToken := l.NextToken()
+	if firstToken.TokenType == lexer.TokenTypeRightParen {
+		return nil, fmt.Errorf("unexpected ')'")
+	} else if firstToken.TokenType == lexer.TokenTypeLeftParen {
+		list, err := readList(l)
+		if err != nil {
+			return nil, err
+		}
+		return &ReturnValue{Type: ListType, Data: list}, nil
+	} else if firstToken.TokenType == lexer.TokenTypeNumber {
+		return MakeNumber(firstToken.Content)
+	} else {
+		return &ReturnValue{Type: SymbolType, Data: firstToken.Content}, nil
+	}
 }

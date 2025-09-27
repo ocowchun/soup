@@ -177,7 +177,7 @@ func runFile(fileName string) error {
 		return err
 	}
 
-	ev := evaluator.New()
+	ev := evaluator.New(os.Stdin)
 	result, err := ev.Eval(program)
 	if err != nil {
 		return err
