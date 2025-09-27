@@ -180,6 +180,8 @@ func TestEvaluator_Builtin_ConOperation(t *testing.T) {
 		{"(caddr '((1 2) (3 4) (5 6)))", `(5 6)`},
 		{"(cddr '((1 2) (3 4) (5 6)))", `((5 6))`},
 		{"(cdddr '((1 2) (3 4) (5 6) (7 8)))", `((7 8))`},
+		{"(caadr '(1 (2 3)))", `2`},
+		{"(cdadr '(1 (2 3)))", `(3)`},
 		{"(cadddr '((1 2) (3 4) (5 6) (7 8)))", `(7 8)`},
 		{`(define l (list 1 2 3)) (set-car! l 4) l`, `(4 2 3)`},
 		{`(define l (list 1 2 3)) (set-cdr! l 4) l`, `(1 . 4)`},

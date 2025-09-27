@@ -128,36 +128,6 @@ func repl() error {
 			fmt.Print(string(buf[:n]))
 		}
 	}
-
-	//scanner := bufio.NewScanner(os.Stdin)
-	//for {
-	//	fmt.Print("soup> ")
-	//
-	//	if !scanner.Scan() {
-	//		break
-	//	}
-	//
-	//	line := scanner.Text()
-	//	if line == "exit" {
-	//		break
-	//	}
-	//	fmt.Println(line)
-	//
-	//	//l := lexer.NewString(input)
-	//	//p := parser.New(l)
-	//	//
-	//	//program, err := p.Parse()
-	//	//if err != nil {
-	//	//	return err
-	//	//}
-	//	//
-	//	//ev := evaluator.New()
-	//	//result, err := ev.Eval(program)
-	//	//if err != nil {
-	//	//	return err
-	//	//}
-	//	//printReturnValue(result)
-	//}
 	return nil
 }
 

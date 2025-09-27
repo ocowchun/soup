@@ -634,6 +634,8 @@ func initGlobalEnvironment(stdin io.Reader) *Environment {
 	addBuiltinToEnv(env, "cddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "cdar", ConProcedureFactory([]ConOperation{CON_OP_CAR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "caddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
+	addBuiltinToEnv(env, "caadr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CAR, CON_OP_CAR}))
+	addBuiltinToEnv(env, "cdadr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CAR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "cdddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CDR}))
 	addBuiltinToEnv(env, "cadddr", ConProcedureFactory([]ConOperation{CON_OP_CDR, CON_OP_CDR, CON_OP_CDR, CON_OP_CAR}))
 
