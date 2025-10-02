@@ -52,6 +52,10 @@ type ReturnValue struct {
 }
 
 func (rv *ReturnValue) String() string {
+	return rv.Display(0)
+}
+
+func (rv *ReturnValue) Display(depth int) string {
 	switch rv.Type {
 	case NumberType:
 		if c, ok := rv.Data.(Number); ok {
@@ -73,35 +77,60 @@ func (rv *ReturnValue) String() string {
 		return "<builtin function>"
 	case SymbolType:
 		if s, ok := rv.Data.(string); ok {
-			return fmt.Sprintf("'%s", s)
+			if depth == 0 {
+				return fmt.Sprintf("'%s", s)
+			} else {
+				return fmt.Sprintf("%s", s)
+			}
 		}
 		return "<invalid symbol>"
 	case ListType:
-		if l, ok := rv.Data.(*ListValue); ok {
-			var b strings.Builder
-			b.WriteString("(")
-			for i, elem := range l.Elements {
-				b.WriteString(elem.String())
-				if i != len(l.Elements)-1 {
-					b.WriteString(" ")
-				}
+		l, ok := rv.Data.(*ListValue)
+		if !ok {
+			return "<invalid list!>"
+		}
+
+		var b strings.Builder
+		if depth == 0 {
+			b.WriteString("'")
+		}
+		elements := l.Elements
+		if len(elements) == 2 && elements[0].Type == SymbolType && elements[0].Symbol() == "quote" {
+			if elements[1].Type == SymbolType && elements[1].Symbol() != "quote" {
+				return fmt.Sprintf("''%s", elements[1].Symbol())
+			} else if depth > 0 && elements[1].Type == ListType {
+				return fmt.Sprintf("'%s", elements[1].Display(depth+1))
+			} else {
+				return fmt.Sprintf("''%s", elements[1].Display(depth+1))
 			}
-			b.WriteString(")")
-			return b.String()
 		}
-		return "<invalid list!>"
+
+		b.WriteString("(")
+		for i, elem := range elements {
+			b.WriteString(elem.Display(depth + 1))
+			if i != len(elements)-1 {
+				b.WriteString(" ")
+			}
+		}
+		b.WriteString(")")
+		return b.String()
 	case ConsType:
-		if c, ok := rv.Data.(*ConsValue); ok {
-			var b strings.Builder
-			b.WriteString("(")
-			b.WriteString(c.Car.String())
-			b.WriteString(" . ")
-			b.WriteString(c.Cdr.String())
-			b.WriteString(")")
-			return b.String()
+		c, ok := rv.Data.(*ConsValue)
+		if !ok {
+			return "<invalid cons>"
 		}
-		fmt.Println("invalid cons ->", rv.Data)
-		return "<invalid cons>"
+
+		var b strings.Builder
+		if depth == 0 {
+			b.WriteString("'")
+		}
+
+		b.WriteString("(")
+		b.WriteString(c.Car.Display(depth + 1))
+		b.WriteString(" . ")
+		b.WriteString(c.Cdr.Display(depth + 1))
+		b.WriteString(")")
+		return b.String()
 	case PromiseType:
 		return "<promise>"
 	default:

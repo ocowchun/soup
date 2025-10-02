@@ -241,6 +241,7 @@ func TestParser_ParseCondExpression(t *testing.T) {
 }
 
 func TestParser_ParseQuoteExpression(t *testing.T) {
+	// add more tests like ''a, '(define a 123) '( 'a)
 	tests := []struct {
 		input          string
 		expectedString string
@@ -250,6 +251,7 @@ func TestParser_ParseQuoteExpression(t *testing.T) {
 		{"'define", "'define"},
 		{"'(1 2 3)", "'(1 2 3)"},
 		{"'\"hola\"", "\"hola\""},
+		{"''a", "''a"},
 	}
 	for _, tt := range tests {
 		text := tt.input

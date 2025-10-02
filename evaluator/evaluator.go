@@ -204,10 +204,33 @@ func (e *Evaluator) eval(expression parser.Expression, environment *Environment)
 		return e.evalDelayExpression(exp, environment)
 	case *parser.StreamExpression:
 		return e.evalStreamExpression(exp, environment)
+	case *parser.NestedSymbolExpression:
+		return e.evalNestedSymbolExpression(exp, environment)
 	default:
-
 		return nil, fmt.Errorf("unsupported expression type: %T", exp)
 	}
+}
+
+func (e *Evaluator) evalNestedSymbolExpression(exp *parser.NestedSymbolExpression, environment *Environment) (*ReturnValue, error) {
+	quote := &ReturnValue{Type: SymbolType, Data: "quote"}
+
+	val, err := e.eval(exp.Value, environment)
+	if err != nil {
+		return nil, err
+	}
+
+	cdr := &ReturnValue{
+		Type: ConsType,
+		Data: &ConsValue{
+			Car: val,
+			Cdr: &ReturnValue{Type: ListType, Data: &ListValue{Elements: make([]*ReturnValue, 0)}},
+		},
+	}
+	cons := &ConsValue{
+		Car: quote,
+		Cdr: cdr,
+	}
+	return &ReturnValue{Type: ConsType, Data: cons}, nil
 }
 
 func (e *Evaluator) evalStreamExpression(exp *parser.StreamExpression, environment *Environment) (*ReturnValue, error) {

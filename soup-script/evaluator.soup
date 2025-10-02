@@ -87,9 +87,9 @@
   'ok)
 
 (define (self-evaluating? exp)
-  (cond ((number? exp) true)
-        ((string? exp) true)
-        (else false)))
+  (cond ((number? exp) #t)
+        ((string? exp) #t)
+        (else #f)))
 
 (define (variable? exp) (symbol? exp))
 
@@ -102,7 +102,7 @@
 (define (tagged-list? exp tag)
   (if (pair? exp)
       (eq? (car exp) tag)
-      false))
+      #f))
 
 (define (assignment? exp)
   (tagged-list? exp 'set!))
@@ -202,10 +202,10 @@
                       rest))))))
 
 (define (true? x)
-  (not (eq? x false)))
+  (not (eq? x #f)))
 
 (define (false? x)
-  (eq? x false))
+  (eq? x #f))
 
 (define (make-procedure parameters body env)
   (list 'procedure parameters body env))
@@ -305,7 +305,7 @@
     (list '* *)
     (list '/ /)
     (list 'remainder remainder)
-    (list 'append append)
+    (list 'append1 append)
     (list 'list list)
     (list '< <)
     (list '> >)

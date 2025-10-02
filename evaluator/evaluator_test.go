@@ -13,8 +13,11 @@ func TestEvaluator_Builtin_List(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
-		{`(list 1 2 3)`, `(1 2 3)`},
-		{`(list (list 4 5) (list 6))`, `((4 5) (6))`},
+		{`(list 1 2 3)`, `'(1 2 3)`},
+		{`(list (list 4 5) (list 6))`, `'((4 5) (6))`},
+		{`(list 'quote 'a)`, `''a`},
+		{`(list 'quote 1 2 3)`, `'(quote 1 2 3)`},
+		{`(list 'quote 'quote 'a)`, `'(quote quote a)`},
 	}
 
 	for _, tt := range tests {
@@ -30,9 +33,9 @@ func TestEvaluator_Builtin_Append(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
-		{`(append '(1 2) '(3 4))`, `(1 2 3 4)`},
-		{`(append '(1 2) '(3 4) '(5 6))`, `(1 2 3 4 5 6)`},
-		{`(append '((1 2) (3 4)) '((5 6) (7 8)))`, `((1 2) (3 4) (5 6) (7 8))`},
+		{`(append '(1 2) '(3 4))`, `'(1 2 3 4)`},
+		{`(append '(1 2) '(3 4) '(5 6))`, `'(1 2 3 4 5 6)`},
+		{`(append '((1 2) (3 4)) '((5 6) (7 8)))`, `'((1 2) (3 4) (5 6) (7 8))`},
 	}
 
 	for _, tt := range tests {
@@ -48,9 +51,9 @@ func TestEvaluator_Builtin_Map(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
-		{`(map (lambda (x) (+ x 1)) '(1 2))`, `(2 3)`},
-		{`(map + '(1 2))`, `(1 2)`},
-		{`(map (lambda (x y) (+ x y)) '(1 2) '(3 4))`, `(4 6)`},
+		{`(map (lambda (x) (+ x 1)) '(1 2))`, `'(2 3)`},
+		{`(map + '(1 2))`, `'(1 2)`},
+		{`(map (lambda (x y) (+ x y)) '(1 2) '(3 4))`, `'(4 6)`},
 	}
 
 	for _, tt := range tests {
@@ -119,6 +122,8 @@ func TestEvaluator_Builtin_EqAndCompare(t *testing.T) {
 		{"(eq? 1 1)", `#t`},
 		{"(eq? 1 2)", `#f`},
 		{"(eq? '(1 2) '(1 2))", `#f`},
+		{"(eq? '(1) '(1))", `#f`},
+		{"(eq? '() '())", `#t`},
 		{"(equal? 'a 'a)", `#t`},
 		{"(equal? 1 1)", `#t`},
 		{"(equal? 1 2)", `#f`},
@@ -163,28 +168,29 @@ func TestEvaluator_Builtin_ConOperation(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
-		{"(cons 1 2)", `(1 . 2)`},
-		{"(cons 1 '())", `(1)`},
-		{"(cons '(1) '(2 3 4))", `((1) 2 3 4)`},
-		{"(cons \"1\" '(2 3 4))", `("1" 2 3 4)`},
-		{"(cons '(1 2) 3)", `((1 2) . 3)`},
+		{"(cons 1 2)", `'(1 . 2)`},
+		{"(cons 1 '())", `'(1)`},
+		{"(cons '(1) '(2 3 4))", `'((1) 2 3 4)`},
+		{"(cons \"1\" '(2 3 4))", `'("1" 2 3 4)`},
+		{"(cons '(1 2) 3)", `'((1 2) . 3)`},
 		{"(car (cons 1 2))", `1`},
 		{"(cdr (cons 1 2))", `2`},
 		{"(car '(1 2 3))", `1`},
-		{"(cdr '(1 2 3))", `(2 3)`},
-		{"(car '((1 2) (3 4)))", `(1 2)`},
-		{"(cdr '((1 2) (3 4)))", `((3 4))`},
+		{"(cdr '(1 2 3))", `'(2 3)`},
+		{"(car '((1 2) (3 4)))", `'(1 2)`},
+		{"(cdr '((1 2) (3 4)))", `'((3 4))`},
 		{"(caar '((1 2)))", `1`},
 		{"(cadr '(1 2 3))", `2`},
-		{"(cdar '((1 2) (3 4)))", `(2)`},
-		{"(caddr '((1 2) (3 4) (5 6)))", `(5 6)`},
-		{"(cddr '((1 2) (3 4) (5 6)))", `((5 6))`},
-		{"(cdddr '((1 2) (3 4) (5 6) (7 8)))", `((7 8))`},
+		{"(cdar '((1 2) (3 4)))", `'(2)`},
+		{"(caddr '((1 2) (3 4) (5 6)))", `'(5 6)`},
+		{"(cddr '((1 2) (3 4) (5 6)))", `'((5 6))`},
+		{"(cdddr '((1 2) (3 4) (5 6) (7 8)))", `'((7 8))`},
 		{"(caadr '(1 (2 3)))", `2`},
-		{"(cdadr '(1 (2 3)))", `(3)`},
-		{"(cadddr '((1 2) (3 4) (5 6) (7 8)))", `(7 8)`},
-		{`(define l (list 1 2 3)) (set-car! l 4) l`, `(4 2 3)`},
-		{`(define l (list 1 2 3)) (set-cdr! l 4) l`, `(1 . 4)`},
+		{"(cdadr '(1 (2 3)))", `'(3)`},
+		{"(cadddr '((1 2) (3 4) (5 6) (7 8)))", `'(7 8)`},
+		{`(define l (list 1 2 3)) (set-car! l 4) l`, `'(4 2 3)`},
+		{`(define l (list 1 2 3)) (set-cdr! l 4) l`, `'(1 . 4)`},
+		{`(cons 'quote (cons 'a '()))`, `''a`},
 	}
 
 	for _, tt := range tests {
@@ -200,9 +206,9 @@ func TestEvaluator_Builtin_Assoc(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
-		{"(assoc 1 (list '(3 2) '(2 1) '(1 9) ))", `(1 9)`},
+		{"(assoc 1 (list '(3 2) '(2 1) '(1 9) ))", `'(1 9)`},
 		{"(assoc 5 (list '(3 2) '(2 1) '(1 9) ))", `#f`},
-		{"(assoc 1 (cons (cons 1 2) (cons (cons 2 3) '())))", `(1 . 2)`},
+		{"(assoc 1 (cons (cons 1 2) (cons (cons 2 3) '())))", `'(1 . 2)`},
 		{"(assoc 5 (cons (cons 1 2) (cons (cons 2 3) '())))", `#f`},
 	}
 
@@ -270,7 +276,7 @@ func TestEvaluator_Stream(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
-		{"(cons-stream 1 2)", `(1 . <promise>)`},
+		{"(cons-stream 1 2)", `'(1 . <promise>)`},
 		{"(car (cons-stream 1 2))", `1`},
 		{"(cdr (cons-stream 1 2))", `<promise>`},
 		{"(stream-car (cons-stream 1 2))", `1`},
@@ -324,10 +330,13 @@ func TestEvaluator_Read(t *testing.T) {
 		stdinInput     string
 		expectedOutput string
 	}{
-		{"(1 2 3)", `(1 2 3)`},
+		{"(1 2 3)", `'(1 2 3)`},
 		{"1", `1`},
 		{"foo", `'foo`},
-		{"(1 2 3 (4 5 6))", `(1 2 3 (4 5 6))`},
+		{"(1 2 3 (4 5 6))", `'(1 2 3 (4 5 6))`},
+		{"'a", `''a`},
+		{`'(123)`, `''(123)`},
+		{`(append '(a b c) '(d e f))`, `'(append '(a b c) '(d e f))`},
 	}
 
 	for _, tt := range tests {

@@ -197,7 +197,7 @@ func (l *ListExpression) Token() lexer.Token {
 }
 
 type SymbolExpression struct {
-	ValueToken lexer.Token
+	FirstToken lexer.Token
 	Value      string
 }
 
@@ -206,7 +206,20 @@ func (s *SymbolExpression) String() string {
 	return fmt.Sprintf("'%s", s.Value)
 }
 func (s *SymbolExpression) Token() lexer.Token {
-	return s.ValueToken
+	return s.FirstToken
+}
+
+type NestedSymbolExpression struct {
+	QuoteToken lexer.Token
+	Value      Expression
+}
+
+func (s *NestedSymbolExpression) expressionNode() {}
+func (s *NestedSymbolExpression) String() string {
+	return fmt.Sprintf("'%s", s.Value)
+}
+func (s *NestedSymbolExpression) Token() lexer.Token {
+	return s.QuoteToken
 }
 
 type BeginExpression struct {

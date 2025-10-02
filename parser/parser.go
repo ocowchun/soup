@@ -658,7 +658,7 @@ func (p *Parser) parseQuoteListExpression() (Expression, error) {
 		case lexer.TokenTypeInvalid:
 			return nil, NewParsingError(p.currentToken, fmt.Sprintf("unexpected token: %s", p.currentToken.TokenType))
 		default:
-			element := &SymbolExpression{ValueToken: p.currentToken, Value: p.currentToken.Content}
+			element := &SymbolExpression{FirstToken: p.currentToken, Value: p.currentToken.Content}
 			elements = append(elements, element)
 			p.nextToken()
 		}
@@ -693,6 +693,9 @@ func (p *Parser) parseQuoteExpression() (Expression, error) {
 	// for list, we can use CallExpression with Operator as nil
 	// for symbol, we can use IdentifierExpression
 
+	// 2025-09-28 we need to reconsider how to parse quote
+	// i.e., ''a, is more like (cons ' 'a)
+	quoteToken := p.currentToken
 	p.nextToken()
 	switch p.currentToken.TokenType {
 	case lexer.TokenTypeLeftParen:
@@ -706,11 +709,17 @@ func (p *Parser) parseQuoteExpression() (Expression, error) {
 		return nil, NewParsingError(p.currentToken, fmt.Sprintf("unexpected token: %s", p.currentToken.TokenType))
 	case lexer.TokenTypeRightParen:
 		return nil, NewParsingError(p.currentToken, fmt.Sprintf("unexpected token: %s", p.currentToken.TokenType))
+	case lexer.TokenTypeQuote:
+		exp, err := p.parseQuoteExpression()
+		if err != nil {
+			return nil, NewParsingError(p.currentToken, err.Error())
+		}
+
+		return &NestedSymbolExpression{quoteToken, exp}, nil
 	default:
-		tok := p.currentToken
-		val := tok.Content
+		val := p.currentToken.Content
 		p.nextToken()
-		return &SymbolExpression{tok, val}, nil
+		return &SymbolExpression{quoteToken, val}, nil
 	}
 }
 

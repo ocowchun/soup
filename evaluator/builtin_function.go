@@ -410,24 +410,29 @@ func initGlobalEnvironment(stdin io.Reader) *Environment {
 				return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
 			}
 
-			if val1.Type == ConstantType && val2.Type == ConstantType {
-				if val1.Constant() == val2.Constant() {
-					return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
-				}
-			}
-			if val1.Type == NumberType && val2.Type == NumberType {
-				if val1.Number() == val2.Number() {
-					return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
-				}
-			}
-			if val1.Type == StringType && val2.Type == StringType {
-				if val1.String() == val2.String() {
-					return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
-				}
-			}
-			if val1.Type == SymbolType && val2.Type == SymbolType {
-				if val1.Symbol() == val2.Symbol() {
-					return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+			if val1.Type == val2.Type {
+				switch val1.Type {
+				case ConsType:
+					if val1.Constant() == val2.Constant() {
+						return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+					}
+				case NumberType:
+					if val1.Number() == val2.Number() {
+						return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+					}
+				case StringType:
+
+					if val1.String() == val2.String() {
+						return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+					}
+				case SymbolType:
+					if val1.Symbol() == val2.Symbol() {
+						return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+					}
+				case ListType:
+					if len(val1.List().Elements) == 0 && len(val2.List().Elements) == 0 {
+						return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
+					}
 				}
 			}
 
@@ -1001,6 +1006,16 @@ func readList(l *lexer.Lexer) (*ListValue, error) {
 			list.Elements = append(list.Elements, num)
 		} else if tok.TokenType == lexer.TokenTypeEOF || tok.TokenType == lexer.TokenTypeInvalid {
 			panic("unreachable")
+		} else if tok.TokenType == lexer.TokenTypeQuote {
+			// how to handle this case?
+			head := &ReturnValue{Type: SymbolType, Data: "quote"}
+			inner, err := doRead(l)
+			if err != nil {
+				return nil, err
+			}
+
+			element := &ReturnValue{Type: ListType, Data: &ListValue{Elements: []*ReturnValue{head, inner}}}
+			list.Elements = append(list.Elements, element)
 		} else {
 			sym := &ReturnValue{Type: SymbolType, Data: tok.Content}
 			list.Elements = append(list.Elements, sym)
@@ -1010,6 +1025,10 @@ func readList(l *lexer.Lexer) (*ListValue, error) {
 
 func read(reader io.Reader) (*ReturnValue, error) {
 	l := lexer.New(reader)
+	return doRead(l)
+}
+
+func doRead(l *lexer.Lexer) (*ReturnValue, error) {
 	firstToken := l.NextToken()
 	if firstToken.TokenType == lexer.TokenTypeRightParen {
 		return nil, fmt.Errorf("unexpected ')'")
@@ -1021,6 +1040,14 @@ func read(reader io.Reader) (*ReturnValue, error) {
 		return &ReturnValue{Type: ListType, Data: list}, nil
 	} else if firstToken.TokenType == lexer.TokenTypeNumber {
 		return MakeNumber(firstToken.Content)
+	} else if firstToken.TokenType == lexer.TokenTypeQuote {
+		head := &ReturnValue{Type: SymbolType, Data: "quote"}
+		tail, err := doRead(l)
+		if err != nil {
+			return nil, err
+		}
+		list := &ListValue{Elements: []*ReturnValue{head, tail}}
+		return &ReturnValue{Type: ListType, Data: list}, nil
 	} else {
 		return &ReturnValue{Type: SymbolType, Data: firstToken.Content}, nil
 	}
