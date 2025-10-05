@@ -412,7 +412,7 @@ func initGlobalEnvironment(stdin io.Reader) *Environment {
 
 			if val1.Type == val2.Type {
 				switch val1.Type {
-				case ConsType:
+				case ConstantType:
 					if val1.Constant() == val2.Constant() {
 						return &ReturnValue{Type: ConstantType, Data: TrueValue}, nil
 					}
@@ -760,12 +760,16 @@ func initGlobalEnvironment(stdin io.Reader) *Environment {
 
 	addBuiltinToEnv(env, "print", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
-			if len(parameters) != 1 {
-				return nil, fmt.Errorf("'print' has been called with %d arguments; it requires exactly 1 argument", len(parameters))
+			if len(parameters) == 0 {
+				return nil, fmt.Errorf("'print' has been called with %d arguments; it requires at least 1 argument", len(parameters))
 			}
-
-			val := parameters[0]
-			fmt.Println(val.String())
+			for i, val := range parameters {
+				if i > 0 {
+					fmt.Print(" ")
+				}
+				fmt.Print(val.String())
+			}
+			fmt.Println()
 
 			return &ReturnValue{Type: ConstantType, Data: VoidConst}, nil
 		},
