@@ -21,6 +21,7 @@
           (begin-actions exp)))
         ((cond? exp)
          (analyze (cond->if exp)))
+        ((let? exp) (analyze-let exp))
         ((application? exp)
          (analyze-application exp))
         (else
@@ -42,6 +43,45 @@
   (tagged-list? exp 'lambda))
 (define (lambda-parameters exp) (cadr exp))
 (define (lambda-body exp) (cddr exp))
+
+(define (make-lambda parameters body)
+  (cons 'lambda (cons parameters body)))
+
+
+(define (make-application operator operands)
+  (cons operator operands)
+  )
+
+(define (true? x)
+  (not (eq? x #f)))
+
+(define (false? x)
+  (eq? x #f))
+
+(define (let? exp)
+  (tagged-list? exp 'let)
+  )
+
+(define (let-var-exp-pairs exp)
+  (cadr exp)
+  )
+
+(define (let-body exp)
+  (cddr exp)
+  )
+
+(define (make-let var-exp-pairs body)
+  (list 'let var-exp-pairs body)
+  )
+
+(define (analyze-let exp)
+  (let
+    (
+     (f (make-lambda (map car (let-var-exp-pairs exp)) (let-body exp) ))
+     )
+     (analyze (make-application f (map cadr (let-var-exp-pairs exp))))
+    )
+  )
 
 
 (define (quoted? exp)
@@ -70,6 +110,13 @@
   (if (symbol? (cadr exp))
       (cadr exp)
       (caadr exp)))
+
+(define (definition-value exp)
+  (if (symbol? (cadr exp))
+      (caddr exp)
+      (make-lambda
+       (cdadr exp)   ; formal parameters
+       (cddr exp)))) ; body
 
 (define (analyze-quoted exp)
   (let ((qval (text-of-quotation exp)))
@@ -183,6 +230,14 @@
         (else (error "Unknown procedure type:
                       EXECUTE-APPLICATION"
                      proc))))
+
+(define (make-procedure parameters body env)
+  (list 'procedure parameters body env))
+(define (compound-procedure? p)
+  (tagged-list? p 'procedure))
+(define (procedure-parameters p) (cadr p))
+(define (procedure-body p) (caddr p))
+(define (procedure-environment p) (cadddr p))
 
 (define (enclosing-environment env) (cdr env))
 (define (first-frame env) (car env))
@@ -308,4 +363,4 @@
 (define the-global-environment
   (setup-environment))
 
-(eval '(* 5 5) the-global-environment)
+(eval '(let ((a 1)) (+ a 2)) the-global-environment)
