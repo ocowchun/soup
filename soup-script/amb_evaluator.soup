@@ -299,11 +299,12 @@
         first-proc
         (loop (sequentially first-proc
                             (car rest-procs))
-              (cdr rest-procs))))
+              (cdr rest-procs)))) ; end of loop procedure
   (let ((procs (map analyze exps)))
-    (if (null? procs)
-        (error "Empty sequence: ANALYZE"))
-    (loop (car procs) (cdr procs))))
+    (if (null? procs) (error "Empty sequence: ANALYZE"))
+    (loop (car procs) (cdr procs))
+  )
+)
 
 ;(define (analyze-application exp)
 ;  (let ((fproc (analyze (operator exp)))
@@ -384,12 +385,12 @@
           fail))
         ((compound-procedure? proc)
          ((procedure-body proc)
-          (extend-environment
-           (procedure-parameters proc)
-           args
-           (procedure-environment proc))
-          succeed
-          fail))
+              (extend-environment
+                   (procedure-parameters proc)
+                   args
+                   (procedure-environment proc))
+              succeed
+              fail))
         (else (error "Unknown procedure type:
                       EXECUTE-APPLICATION"
                      proc))))
