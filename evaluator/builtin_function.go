@@ -26,6 +26,7 @@ func getCar(val *ReturnValue) (*ReturnValue, error) {
 		return nil, fmt.Errorf("'car' expected cons or list value, got %s", val.Type)
 	}
 }
+
 func getCdr(val *ReturnValue) (*ReturnValue, error) {
 	switch val.Type {
 	case ConsType:
@@ -802,11 +803,10 @@ func initGlobalEnvironment(stdin io.Reader) *Environment {
 		},
 	})
 
-	// TODO implement assoc, map
 	addBuiltinToEnv(env, "map", &BuiltinFunction{
 		Fn: func(parameters []*ReturnValue, evaluator *Evaluator, environment *Environment) (*ReturnValue, error) {
 			if len(parameters) < 2 {
-				return nil, fmt.Errorf("'assoc' has been called with %d arguments; it requires at least 2 arguments", len(parameters))
+				return nil, fmt.Errorf("'map' has been called with %d arguments; it requires at least 2 arguments", len(parameters))
 			}
 
 			proc := parameters[0]

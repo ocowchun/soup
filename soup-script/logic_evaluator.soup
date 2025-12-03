@@ -1,6 +1,36 @@
 (define input-prompt  ";;; Query input:")
 (define output-prompt ";;; Query results:")
 
+(define (make-hash)
+  (list '*table*))
+
+(define (hash-ref table key )
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (cdr record)
+        false)))
+
+(define (hash-set! table key value )
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (set-cdr! record value)
+        (set-cdr! table
+                  (cons (cons key value)
+                        (cdr table)))))
+  'ok)
+
+(define *op-table* (make-hash))
+
+(define (put op type proc)
+  (hash-set! *op-table* (list op type) proc))
+
+(define (get op type)
+  (hash-ref *op-table* (list op type))
+)
+
+(define (singleton-stream x)
+  (cons-stream x the-empty-stream))
+
 (define (stream-append s1 s2)
   (if (stream-null? s1)
       s2
@@ -8,69 +38,332 @@
        (stream-car s1)
        (stream-append (stream-cdr s1) s2))))
 
-(define (stream-flatmap proc stream)
-    (if (stream-null? stream)
-        the-empty-stream
-        (stream-append
-            (proc (stream-car stream))
-            (stream-flatmap proc (stream-cdr stream))
-        )
-)
+(define (stream-append-delayed s1 delayed-s2)
+  (if (stream-null? s1)
+      (force delayed-s2)
+      (cons-stream
+       (stream-car s1)
+       (stream-append-delayed (stream-cdr s1)
+                              delayed-s2))))
 
-; TODO implement stream-append-delayed
+;(define (stream-flatmap proc stream)
+;    (if (stream-null? stream)
+;        the-empty-stream
+;        (stream-append-delayed
+;            (proc (stream-car stream))
+;            (delay (stream-flatmap proc (stream-cdr stream)))
+;        ))
+;)
+(define (interleave-delayed s1 delayed-s2)
+  (if (stream-null? s1)
+      (force delayed-s2)
+      (cons-stream
+       (stream-car s1)
+       (interleave-delayed
+        (force delayed-s2)
+        (delay (stream-cdr s1))))))
 
+
+(define (stream-map proc . argstreams)
+  (if  (stream-null? (car argstreams))
+    the-empty-stream
+    (cons-stream
+      (apply proc (map car argstreams))
+      (apply stream-map (cons proc (map stream-cdr argstreams)))
+     )
+    )
+  )
+
+(define (stream-flatmap proc s)
+  (flatten-stream (stream-map proc s)))
+
+(define (flatten-stream stream)
+  (if (stream-null? stream)
+      the-empty-stream
+      (interleave-delayed
+       (stream-car stream)
+       (delay (flatten-stream
+               (stream-cdr stream))))))
 
 ; fetch-assertions returns a stream of all the assertions in the data base that should be checked for a match against the pattern and the frame.
+; TODO: add fetch-assertions
 
+
+
+; extend the current frame by binding the variable to the data,
+; so long as this is consistent with the bindings already in the frame.
 (define (extend-if-consistent var dat frame)
   (let ((binding (binding-in-frame var frame)))
     (if binding
-        (pattern-match
-         (binding-value binding) dat frame)
-        (extend var dat frame))))
+        ; match, in the frame, the data against the value of the variable in the frame.
+        (pattern-match (binding-value binding) dat frame)
+        ; If there is no binding for the variable in the frame, we simply add the binding of the variable to the data.
+        (extend var dat frame)
+    )
+  )
+)
 
 
 (define (pattern-match pat dat frame)
   (cond ((eq? frame 'failed) 'failed)
         ((equal? pat dat) frame)
         ((var? pat)
-         (extend-if-consistent
-          pat dat frame))
+         (extend-if-consistent pat dat frame))
         ((and (pair? pat) (pair? dat))
          (pattern-match
           (cdr pat)
           (cdr dat)
           (pattern-match
            (car pat) (car dat) frame)))
-        (else 'failed)))
+        (else 'failed)
+    )
+)
 
-(define (check-an-assertion
-         assertion query-pat query-frame)
+(define (check-an-assertion assertion query-pat query-frame)
   (let ((match-result
          (pattern-match
           query-pat assertion query-frame)))
     (if (eq? match-result 'failed)
         the-empty-stream
-        (singleton-stream match-result))))
+        (singleton-stream match-result)))
+)
 
-; why do we need frame here? I thought we can query db by pattern itself?
+; Q: why do we need frame here? I thought we can query db by pattern itself?
+; A: because pattern may contain variables that are already bound in frame.
 ; returns a stream of frames, each extending the given one by a data-base match of the given pattern.
 (define (find-assertions pattern frame)
   (stream-flatmap
     (lambda (datum)
       (check-an-assertion datum pattern frame))
-    (fetch-assertions pattern frame)))
+    ; get a stream of all the assertions in the data base that should be checked for a match against the pattern and the frame.
+    ; The reason for fetch-assertions here is that we can often apply simple tests
+    ; that will eliminate many of the entries in the data base from the pool of candidates for a successful match.
+    (fetch-assertions pattern frame)
+  )
+)
+
+(define (rule? statement)
+  (tagged-list? statement 'rule))
+
+(define (conclusion rule) (cadr rule))
+
+(define (rule-body rule)
+  (if (null? (cddr rule))
+      '(always-true)
+      (caddr rule)))
+
+(define rule-counter 0)
+
+(define (new-rule-application-id)
+  (set! rule-counter (+ 1 rule-counter))
+  rule-counter)
+
+(define (make-new-variable
+         var rule-application-id)
+  (cons '? (cons rule-application-id
+                 (cdr var))))
+
+
+(define (rename-variables-in rule)
+  (let ((rule-application-id
+         (new-rule-application-id)))
+    (define (tree-walk exp)
+      (cond ((var? exp)
+             (make-new-variable
+              exp
+              rule-application-id))
+            ((pair? exp)
+             (cons (tree-walk (car exp))
+                   (tree-walk (cdr exp))))
+            (else exp)))
+    (tree-walk rule)))
+
+(define (depends-on? exp var frame)
+  (define (tree-walk e)
+    (cond ((var? e)
+           (if (equal? var e)
+               true
+               (let
+                 ((b (binding-in-frame
+                      e
+                      frame)))
+                  (if b
+                      (tree-walk
+                       (binding-value b))
+                      false))))
+          ((pair? e)
+           (or (tree-walk (car e))
+               (tree-walk (cdr e))))
+          (else false)))
+  (tree-walk exp))
+
+(define (extend-if-possible var val frame)
+  (let ((binding (binding-in-frame var frame)))
+    (cond (binding
+           (unify-match
+            (binding-value binding) val frame))
+          ((var? val)                   ; ***
+           (let ((binding
+                  (binding-in-frame
+                   val
+                   frame)))
+             (if binding
+                 (unify-match
+                  var
+                  (binding-value binding)
+                  frame)
+                 (extend var val frame))))
+          ((depends-on? val var frame)  ; ***
+           'failed)
+          (else (extend var val frame)))))
+
+(define (unify-match p1 p2 frame)
+  (cond ((eq? frame 'failed) 'failed)
+        ((equal? p1 p2) frame)
+        ((var? p1)
+         (extend-if-possible p1 p2 frame))
+        ((var? p2)
+         (extend-if-possible
+          p2
+          p1
+          frame))        ; ***
+        ((and (pair? p1)
+              (pair? p2))
+         (unify-match
+          (cdr p1)
+          (cdr p2)
+          (unify-match
+           (car p1)
+           (car p2)
+           frame)))
+        (else 'failed)))
+
+
+
+(define (apply-a-rule rule
+                      query-pattern
+                      query-frame)
+  ; Before any of this happens, however, the program renames all the variables in the rule with unique new names.
+  ; The reason for this is to prevent the variables for different rule applications from becoming confused with each other.
+  ; For instance, if two rules both use a variable named ?x, then each one may add a binding for ?x to the frame when it is applied.
+  ; These two ?x’s have nothing to do with each other, and we should not be fooled into thinking that the two bindings must be consistent.
+  (let ((clean-rule
+         (rename-variables-in rule)))
+    (let ((unify-result
+           (unify-match query-pattern
+                        (conclusion clean-rule)
+                        query-frame)))
+      (if (eq? unify-result 'failed)
+          the-empty-stream
+          (qeval (rule-body clean-rule)
+                 (singleton-stream
+                  unify-result)))))
+)
+
+; Apply-rules is the rule analog of find-assertions
+(define (apply-rules pattern frame)
+  (stream-flatmap
+   (lambda (rule)
+     (apply-a-rule rule pattern frame))
+   (fetch-rules pattern frame))
+)
+
 
 ; returns the stream formed by extending each frame by all data-base matches of the query.
 (define (simple-query query-pattern
                       frame-stream)
   (stream-flatmap
+    ; use find-assertions to match the pattern against all assertions in the data base, producing a stream of extended frames,
+    ; and then use apply-rules to apply all possible rules, producing another stream of extended frames.
+    ; These two streams are combined (using stream-append-delayed) to make a stream of all the ways that the
+    ; given pattern can be satisfied consistent with the original frame
    (lambda (frame)
      (stream-append-delayed
       (find-assertions query-pattern frame)
       (delay
         (apply-rules query-pattern frame))))
    frame-stream))
+
+; compound queries
+
+(define (empty-conjunction? exps) (null? exps))
+(define (first-conjunct exps) (car exps))
+(define (rest-conjuncts exps) (cdr exps))
+
+(define (conjoin conjuncts frame-stream)
+  (if (empty-conjunction? conjuncts)
+      frame-stream
+      (conjoin (rest-conjuncts conjuncts)
+               (qeval
+                (first-conjunct conjuncts)
+                frame-stream))))
+
+(put 'and 'qeval conjoin)
+
+(define (empty-disjunction? exps) (null? exps))
+(define (first-disjunct exps) (car exps))
+(define (rest-disjuncts exps) (cdr exps))
+
+; The output streams for the various disjuncts of the or are computed separately and merged using the interleave-delayed
+; TODO: see how it works
+(define (disjoin disjuncts frame-stream)
+  (if (empty-disjunction? disjuncts)
+      the-empty-stream
+      (interleave-delayed
+       (qeval (first-disjunct disjuncts)
+              frame-stream)
+       (delay (disjoin
+               (rest-disjuncts disjuncts)
+               frame-stream)))))
+
+(put 'or 'qeval disjoin)
+
+(define (negated-query exps) (car exps))
+
+; We attempt to extend each frame in the input stream to satisfy the query being negated,
+; and we include a given frame in the output stream only if it cannot be extended.
+(define (negate operands frame-stream)
+  (stream-flatmap
+   (lambda (frame)
+     (if (stream-null?
+          (qeval (negated-query operands)
+                 (singleton-stream frame)))
+         (singleton-stream frame)
+         the-empty-stream))
+   frame-stream))
+(put 'not 'qeval negate)
+
+;Lisp-value is a filter similar to not. Each frame in the stream is used to instantiate the variables in the pattern,
+;the indicated predicate is applied, and the frames for which the predicate returns false are filtered out of the input stream.
+;An error results if there are unbound pattern variables.
+(define (lisp-value call frame-stream)
+  (stream-flatmap
+   (lambda (frame)
+     (if (execute
+          (instantiate
+           call
+           frame
+           (lambda (v f)
+             (error
+              "Unknown pat var: LISP-VALUE"
+              v))))
+         (singleton-stream frame)
+         the-empty-stream))
+   frame-stream))
+(put 'lisp-value 'qeval lisp-value)
+
+; Execute, which applies the predicate to the arguments, must eval the predicate expression to get the procedure to apply.
+; However, it must not evaluate the arguments, since they are already the actual arguments,
+;not expressions whose evaluation (in Lisp) will produce the arguments.
+;Note that execute is implemented using eval and apply from the underlying Lisp system.
+(define (execute exp)
+  (apply (eval (predicate exp)
+               user-initial-environment)
+         (args exp)))
+
+(define (always-true ignore frame-stream)
+  frame-stream)
+(put 'always-true 'qeval always-true)
 
 ; It takes as inputs a query and a stream of frames, and it returns a stream of extended frames.
 ; It identifies special forms by a data-directed dispatch using get and put,
@@ -83,18 +376,22 @@
 )
 
 
-; TODO: understand how it works
+; To instantiate an expression, we copy it, replacing any variables in the expression by their values in a given frame.
+; The values are themselves instantiated, since they could contain variables
+;(for example, if ?x in exp is bound to ?y as the result of unification and ?y is in turn bound to 5).
+; The action to take if a variable cannot be instantiated is given by a procedural argument to instantiate.
 (define (instantiate exp frame unbound-var-handler)
   (define (copy exp)
     (cond ((var? exp)
-           (let ((binding
+            (let ((binding
                   (binding-in-frame
                    exp frame)))
              (if binding
-                 (copy
-                  (binding-value binding))
-                 (unbound-var-handler
-                  exp frame))))
+                 (copy (binding-value binding))
+                 (unbound-var-handler exp frame)
+             )
+            )
+           )
           ((pair? exp)
            (cons (copy (car exp))
                  (copy (cdr exp))))
